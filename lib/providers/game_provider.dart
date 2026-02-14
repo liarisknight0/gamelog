@@ -1,88 +1,93 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:gamelog/models/game.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-// The master list of ALL games.
-final gameListProvider = StateNotifierProvider<GameNotifier, List<Game>>((ref) {
-  return GameNotifier();
-});
+// This line is mandatory for the generator to work
+part 'game_provider.g.dart';
 
-// --- REFINED PROVIDERS BASED ON NEW WORKFLOW ---
+@Riverpod(keepAlive: true)
+class GameList extends _$GameList {
+  late Box<Game> _box;
 
-// COLLECTION: All owned games that are NOT beaten.
-final collectionProvider = Provider<List<Game>>((ref) {
-  final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) =>
-  game.status != GameStatus.beaten &&
-      game.status != GameStatus.backlog // Backlog is now a pure wishlist
-  ).toList();
-});
-
-// NOW PLAYING: Only the game(s) with the 'nowPlaying' status.
-final nowPlayingProvider = Provider<List<Game>>((ref) {
-  final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) => game.status == GameStatus.nowPlaying).toList();
-});
-
-// ARCHIVE: Only 'beaten' or 'dropped' games.
-final archiveProvider = Provider<List<Game>>((ref) {
-  final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) =>
-  game.status == GameStatus.beaten ||
-      game.status == GameStatus.dropped
-  ).toList();
-});
-
-// BACKLOG (WISHLIST): Only games with the 'backlog' status.
-final backlogProvider = Provider<List<Game>>((ref) {
-  final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) => game.status == GameStatus.backlog).toList();
-});
-
-// --- SEARCH PROVIDERS (Unchanged) ---
-final searchQueryProvider = StateProvider<String>((ref) => '');
-
-final searchResultsProvider = Provider<List<Game>>((ref) {
-  final allGames = ref.watch(gameListProvider);
-  final query = ref.watch(searchQueryProvider);
-
-  if (query.trim().isEmpty) {
-    return [];
+  @override
+  List<Game> build() {
+    // Initialize the box and return the current list of games
+    _box = Hive.box<Game>('games');
+    return _box.values.toList();
   }
 
-  return allGames.where((game) {
-    return game.title.toLowerCase().contains(query.toLowerCase());
-  }).toList();
-});
-
-// --- GAME NOTIFIER (Unchanged from last correct version) ---
-class GameNotifier extends StateNotifier<List<Game>> {
-  GameNotifier() : super(Hive.box<Game>('games').values.toList());
-  final _gameBox = Hive.box<Game>('games');
-
-  void refreshGames() {
-    state = _gameBox.values.toList();
+  // Updates the state with whatever is currently in the Hive database
+  void refresh() {
+    state = _box.values.toList();
   }
 
   void addGame(Game game) {
-    _gameBox.add(game);
-    refreshGames();
+    _box.add(game);
+    refresh();
   }
 
   void deleteGame(Game game) {
     game.delete();
-    refreshGames();
-  }
-
-  void updateGame(Game updatedGame) {
-    updatedGame.save();
-    refreshGames();
+    refresh();
   }
 
   void updateGameStatus(Game game, GameStatus newStatus) {
     game.status = newStatus;
     game.save();
-    refreshGames();
+    refresh();
   }
+}
+
+// --- FILTERED PROVIDERS (Computed States) ---
+
+@riverpod
+List<Game> collection(CollectionRef ref) {
+  final allGames = ref.watch(gameListProvider);
+  return allGames.where((game) =>
+  game.status != GameStatus.beaten &&
+      game.status != GameStatus.backlog
+  ).toList();
+}
+
+@riverpod
+List<Game> nowPlaying(NowPlayingRef ref) {
+  final allGames = ref.watch(gameListProvider);
+  return allGames.where((game) => game.status == GameStatus.nowPlaying).toList();
+}
+
+@riverpod
+List<Game> archive(ArchiveRef ref) {
+  final allGames = ref.watch(gameListProvider);
+  return allGames.where((game) =>
+  game.status == GameStatus.beaten ||
+      game.status == GameStatus.dropped
+  ).toList();
+}
+
+@riverpod
+List<Game> backlog(BacklogRef ref) {
+  final allGames = ref.watch(gameListProvider);
+  return allGames.where((game) => game.status == GameStatus.backlog).toList();
+}
+
+// --- SEARCH LOGIC ---
+
+@riverpod
+class SearchQuery extends _$SearchQuery {
+  @override
+  String build() => '';
+
+  void setQuery(String query) => state = query;
+}
+
+@riverpod
+List<Game> searchResults(SearchResultsRef ref) {
+  final allGames = ref.watch(gameListProvider);
+  final query = ref.watch(searchQueryProvider).toLowerCase();
+
+  if (query.trim().isEmpty) return [];
+
+  return allGames.where((game) {
+    return game.title.toLowerCase().contains(query);
+  }).toList();
 }

@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:gamelog/providers/user_settings_provider.dart'; // We need access to the service
+import 'package:gamelog/providers/user_settings_provider.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-// This provider will hold the current theme mode.
-// We change it to a more specific type to access our service.
-final themeProvider = StateNotifierProvider<ThemeNotifier, ThemeMode>((ref) {
-  // We provide the UserSettingsService to the ThemeNotifier's constructor.
-  final settingsService = ref.watch(userSettingsServiceProvider);
-  return ThemeNotifier(settingsService);
-});
+part 'theme_provider.g.dart';
 
-class ThemeNotifier extends StateNotifier<ThemeMode> {
-  // Store a reference to the settings service.
-  final UserSettingsService _settingsService;
+// We create a Notifier that holds the ThemeMode state.
+// keepAlive ensures the theme doesn't reset when you change pages.
+@Riverpod(keepAlive: true)
+class ThemeModeNotifier extends _$ThemeModeNotifier {
+  @override
+  ThemeMode build() {
+    // Read the initial theme from our settings service.
+    final settingsService = ref.watch(userSettingsServiceProvider);
+    return settingsService.isDarkMode() ? ThemeMode.dark : ThemeMode.light;
+  }
 
-  // Constructor now reads the initial theme from the service.
-  ThemeNotifier(this._settingsService)
-      : super(_settingsService.isDarkMode() ? ThemeMode.dark : ThemeMode.light);
-
-  // The toggle method now also saves the new preference.
   void toggleTheme() {
-    state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
-    // Write the new value to our Hive box via the service.
-    _settingsService.setDarkMode(state == ThemeMode.dark);
+    final settingsService = ref.read(userSettingsServiceProvider);
+    if (state == ThemeMode.dark) {
+      state = ThemeMode.light;
+      settingsService.setDarkMode(false);
+    } else {
+      state = ThemeMode.dark;
+      settingsService.setDarkMode(true);
+    }
   }
 }

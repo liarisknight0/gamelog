@@ -1,12 +1,13 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+part 'user_settings_provider.g.dart';
+
+// This is the raw class that talks to the Hive database. It stays the same.
 class UserSettingsService {
   final Box _box;
   UserSettingsService(this._box);
 
-  // --- USER NAME METHODS (Unchanged) ---
   String getUserName() {
     return _box.get('userName', defaultValue: 'Gamer');
   }
@@ -15,27 +16,33 @@ class UserSettingsService {
     await _box.put('userName', name);
   }
 
-  // --- NEW THEME METHODS ---
-  // Reads the theme preference. Defaults to true (dark mode) if not set.
   bool isDarkMode() {
     return _box.get('isDarkMode', defaultValue: true);
   }
 
-  // Writes the theme preference.
   Future<void> setDarkMode(bool isDark) async {
     await _box.put('isDarkMode', isDark);
   }
-// --- END OF NEW THEME METHODS ---
 }
 
-// This provider gives other parts of our app access to the service.
-final userSettingsServiceProvider = Provider<UserSettingsService>((ref) {
+// This provider creates a single instance of our service for the whole app.
+@Riverpod(keepAlive: true)
+UserSettingsService userSettingsService(UserSettingsServiceRef ref) {
   final box = Hive.box('userSettings');
   return UserSettingsService(box);
-});
+}
 
-// The userNameProvider remains unchanged.
-final userNameProvider = StateProvider<String>((ref) {
-  final settingsService = ref.watch(userSettingsServiceProvider);
-  return settingsService.getUserName();
-});
+
+// This provider manages the user's name so the UI can update when it changes.
+@Riverpod(keepAlive: true)
+class UserName extends _$UserName {
+  @override
+  String build() {
+    return ref.watch(userSettingsServiceProvider).getUserName();
+  }
+
+  void updateName(String newName) {
+    ref.read(userSettingsServiceProvider).setUserName(newName);
+    state = newName;
+  }
+}

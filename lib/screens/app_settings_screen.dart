@@ -3,14 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/providers/theme_provider.dart';
 import 'package:gamelog/widgets/profile_menu_widgets.dart';
 
-// NO provider definitions should be in this file.
-
 class AppSettingsScreen extends ConsumerWidget {
   const AppSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentThemeMode = ref.watch(themeProvider);
+    // --- FIX 1: Watch the new provider ---
+    final currentThemeMode = ref.watch(themeModeNotifierProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -24,7 +23,8 @@ class AppSettingsScreen extends ConsumerWidget {
             subtitle: const Text('Toggle between light and dark theme'),
             value: currentThemeMode == ThemeMode.dark,
             onChanged: (isDarkMode) {
-              ref.read(themeProvider.notifier).toggleTheme();
+              // --- FIX 2: Call the notifier method on the new provider ---
+              ref.read(themeModeNotifierProvider.notifier).toggleTheme();
             },
             secondary: const Icon(Icons.brightness_6_outlined),
           ),

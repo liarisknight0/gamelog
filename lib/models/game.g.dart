@@ -22,13 +22,16 @@ class GameAdapter extends TypeAdapter<Game> {
       genre: fields[2] as String,
       status: fields[3] as GameStatus,
       dateAdded: fields[4] as DateTime,
+      coverUrl: fields[5] as String?,
+      summary: fields[6] as String?,
+      rating: fields[7] as double?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Game obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.title)
       ..writeByte(1)
@@ -38,7 +41,13 @@ class GameAdapter extends TypeAdapter<Game> {
       ..writeByte(3)
       ..write(obj.status)
       ..writeByte(4)
-      ..write(obj.dateAdded);
+      ..write(obj.dateAdded)
+      ..writeByte(5)
+      ..write(obj.coverUrl)
+      ..writeByte(6)
+      ..write(obj.summary)
+      ..writeByte(7)
+      ..write(obj.rating);
   }
 
   @override
