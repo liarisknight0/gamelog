@@ -10,7 +10,6 @@ class SearchScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final searchResults = ref.watch(searchResultsProvider);
-    final searchQueryNotifier = ref.read(searchQueryProvider.notifier);
 
     return Scaffold(
       appBar: AppBar(
@@ -21,7 +20,7 @@ class SearchScreen extends ConsumerWidget {
             border: InputBorder.none,
           ),
           onChanged: (query) {
-            searchQueryNotifier.state = query;
+            ref.read(searchQueryProvider.notifier).setQuery(query);
           },
         ),
       ),

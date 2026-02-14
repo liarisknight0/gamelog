@@ -1,3 +1,9 @@
+/// The main entry point for the GameLog application.
+///
+/// This file is responsible for initializing the application, setting up
+/// necessary services like Hive for local storage and SharedPreferences for
+/// user preferences, and running the main `GameLogApp` widget.
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/models/game.dart';
@@ -8,8 +14,17 @@ import 'package:gamelog/themes/app_themes.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// A flag to determine if the user has seen the onboarding screen.
+///
+/// This is initialized asynchronously in `main` and used to determine
+/// the initial screen of the application.
 late final bool hasSeenOnboarding;
 
+/// The main entry point of the application.
+///
+/// Initializes Hive for local database storage, registers Hive adapters for
+/// custom data models, and checks if the user has seen the onboarding screen
+/// using `SharedPreferences`. Finally, it runs the `GameLogApp`.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -25,7 +40,14 @@ void main() async {
   runApp(const ProviderScope(child: GameLogApp()));
 }
 
+/// The root widget of the GameLog application.
+///
+/// A `ConsumerWidget` from `flutter_riverpod` that builds the `MaterialApp`
+/// and provides the theme based on the user's preference. It also sets up
+/// the initial screen based on whether the user has completed the onboarding
+/// process.
 class GameLogApp extends ConsumerWidget {
+  /// Creates a new instance of `GameLogApp`.
   const GameLogApp({super.key});
 
   @override
