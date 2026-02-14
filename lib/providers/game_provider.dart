@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gamelog/models/game.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 

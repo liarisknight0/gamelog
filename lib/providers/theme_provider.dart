@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gamelog/providers/user_settings_provider.dart'; // We need access to the service
 
 // This provider will hold the current theme mode.
