@@ -6,6 +6,7 @@ import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/screens/search_screen.dart';
 import 'package:gamelog/widgets/empty_state_widget.dart';
 import 'package:gamelog/widgets/game_card.dart';
+import 'package:gamelog/widgets/sort_menu.dart';
 
 class CollectionScreen extends ConsumerWidget {
   const CollectionScreen({super.key});
@@ -18,6 +19,7 @@ class CollectionScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('My Collection'),
         actions: [
+          const SortMenu(),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SearchScreen())),

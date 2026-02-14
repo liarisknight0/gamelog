@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RoadmapItem {
   final String title;
@@ -7,90 +8,174 @@ class RoadmapItem {
   RoadmapItem(this.title, this.description, this.isCompleted);
 }
 
-class SupportScreen extends StatelessWidget {
+class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
 
   @override
+  State<SupportScreen> createState() => _SupportScreenState();
+}
+
+class _SupportScreenState extends State<SupportScreen> {
+  final TextEditingController _suggestionController = TextEditingController();
+
+  // --- THE ROADMAP DATA ---
+  final List<RoadmapItem> roadmap = [
+    RoadmapItem("v1.0 Launch", "Core game tracking with offline local storage.", true),
+    RoadmapItem("API Integration", "Automated game search, metadata, and cover art.", true),
+    RoadmapItem("Sorting & Filtering", "Advanced sorting and filters for faster navigation.", true),
+    RoadmapItem("Import / Export Data", "Export and back up your library in supported formats.", true),
+    RoadmapItem("Stats Dashboard", "Visual insights into playtime, completion, and habits.", false),
+    RoadmapItem("Social Features", "Share your backlog and progress with friends.", false),
+    RoadmapItem("HLTB Integration", "Show estimated main and completionist playtime on game details.", false),
+    RoadmapItem("Random Game Selector", "Pick a random backlog game to fight choice paralysis.", false),
+    RoadmapItem("Shimmer Loading States", "Skeleton loaders for smoother, premium loading experience.", false),
+    RoadmapItem("Custom Filter Tags", "Quick filter chips for platform, genre, and custom tags.", false),
+    RoadmapItem("Custom Accent Colors", "User-selected accent colors for a personalized theme.", false),
+    RoadmapItem("Shareable Collection Cards", "Generate shareable images of completed games.", false),
+    RoadmapItem("Platform Icons", "Replace text chips with official platform icons.", false),
+    RoadmapItem("AMOLED Black Theme", "True black theme optimized for OLED displays.", false),
+    RoadmapItem("Release Countdown", "Countdown timers and launch-day notifications for upcoming games.", false),
+    RoadmapItem("Gaming Journal", "Private notes for thoughts, tips, and personal memories.", false),
+    RoadmapItem("Home Screen Widget", "Widget showing the currently played game.", false),
+    RoadmapItem("Multi-Playthrough Support", "Track multiple playthroughs per game.", false),
+    RoadmapItem("Digital vs Physical Library", "Mark and filter games as physical or digital.", false),
+    RoadmapItem("Collection Worth Tracking", "Track price paid and total library value.", false),
+    RoadmapItem("Finished Date Timeline", "Timeline view of games completed over the years.", false),
+
+  ];
+
+  @override
+  void dispose() {
+    _suggestionController.dispose();
+    super.dispose();
+  }
+
+  /// Opens the user's email app with the suggestion pre-filled.
+  Future<void> _sendSuggestion() async {
+    final String text = _suggestionController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please type a suggestion first!")),
+      );
+      return;
+    }
+
+    // Replace with your actual email address
+    const String myEmail = "liarisknight@gmail.com";
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: myEmail,
+      query: 'subject=GameLog Feature Suggestion&body=$text',
+    );
+
+    if (await canLaunchUrl(emailLaunchUri)) {
+      await launchUrl(emailLaunchUri);
+      _suggestionController.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Opening your email app...")),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not open email app.")),
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final List<RoadmapItem> roadmap = [
-      RoadmapItem("v1.0 Launch", "Basic game tracking and local storage.", true),
-      RoadmapItem("API Integration", "Automated game search and cover art.", false),
-      RoadmapItem("Sorting and Filtering", "Efficiency", false),
-      RoadmapItem("Import/Export Data", "Export your database ain some formate.", false),
-      RoadmapItem("Account Sync", "Connect all platforms and import all the games collections.", false),
-      RoadmapItem("Cloud Sync", "Sync your library across all devices.", false),
-      RoadmapItem("Stats Dashboard", "Visual analytics of your gaming habits.", false),
-      RoadmapItem("Social Features", "Share your backlog with friends.", false),
-      RoadmapItem("Animation", "making the app alive", false),
-      RoadmapItem("HLTB Integration", "Show estimated main and completionist playtime on game details.", false),
-      RoadmapItem("Random Game Selector", "Pick a random backlog game to fight choice paralysis.", false),
-      RoadmapItem("Shimmer Loading States", "Skeleton loaders for smoother, premium loading experience.", false),
-      RoadmapItem("Custom Filter Tags", "Quick filter chips for platform, genre, and custom tags.", false),
-      RoadmapItem("Monthly Goals & Year Review", "Track completed games and show progress toward goals.", false),
-      RoadmapItem("Custom Accent Colors", "User-selected accent colors for a personalized theme.", false),
-      RoadmapItem("Shareable Collection Cards", "Generate shareable images of completed games.", false),
-      RoadmapItem("Platform Icons", "Replace text chips with official platform icons.", false),
-      RoadmapItem("AMOLED Black Theme", "True black theme optimized for OLED displays.", false),
-      RoadmapItem("Release Countdown", "Countdown timers and launch-day notifications for upcoming games.", false),
-      RoadmapItem("Gaming Journal", "Private notes for thoughts, tips, and personal memories.", false),
-      RoadmapItem("Home Screen Widget", "Widget showing the currently played game.", false),
-      RoadmapItem("Multi-Playthrough Support", "Track multiple playthroughs per game.", false),
-      RoadmapItem("Digital vs Physical Library", "Mark and filter games as physical or digital.", false),
-      RoadmapItem("Collection Worth Tracking", "Track price paid and total library value.", false),
-      RoadmapItem("Finished Date Timeline", "Timeline view of games completed over the years.", false),
-
-
-    ];
-
     return Scaffold(
       appBar: AppBar(title: const Text('Support & Feature Drop')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          // --- ROADMAP SECTION ---
           Text(
-            "The Future of GameLog",
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            "Feature Roadmap",
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 10),
-          const Text("We are constantly working on new features, but some features are subject to change: "),
-          const SizedBox(height: 30),
+          const SizedBox(height: 8),
+          const Text("Here is what we are building next for GameLog."),
+          const SizedBox(height: 24),
 
-          // --- THE TIMELINE ---
           ...roadmap.map((item) => _buildTimelineItem(context, item)),
 
-          const SizedBox(height: 40),
-          const Divider(),
-          const SizedBox(height: 20),
-          Center(
-            child: FilledButton.icon(
-              onPressed: () {  },
-              icon: const Icon(Icons.coffee),
-              label: const Text("Support Development"),
+          const Divider(height: 40),
+
+          // --- SUGGESTION SECTION ---
+          Text(
+            "Suggest a Feature",
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text("Have an idea to make GameLog better? Tell us about it!"),
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: _suggestionController,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: "I want to see...",
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
             ),
-          )
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _sendSuggestion,
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: const Text("Submit Suggestion"),
+            ),
+          ),
+
+          const SizedBox(height: 40),
+
+          // --- SUPPORT BUTTON ---
+          Center(
+            child: TextButton.icon(
+              onPressed: () {
+                // Link to your Buy Me a Coffee or Support page
+              },
+              icon: const Icon(Icons.coffee_rounded),
+              label: const Text("Support the Developer"),
+            ),
+          ),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
   Widget _buildTimelineItem(BuildContext context, RoadmapItem item) {
+    final color = item.isCompleted ? Colors.green : Theme.of(context).colorScheme.primary;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Column(
           children: [
             Icon(
-              item.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: item.isCompleted ? Colors.green : Theme.of(context).colorScheme.primary,
+              item.isCompleted ? Icons.check_circle : Icons.circle_outlined,
+              size: 20,
+              color: color,
             ),
             Container(
               width: 2,
-              height: 50,
-              color: Colors.grey.withValues(alpha: 0.3),
+              height: 40,
+              color: Colors.grey.withOpacity(0.2),
             ),
           ],
         ),
-        const SizedBox(width: 20),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,15 +184,15 @@ class SupportScreen extends StatelessWidget {
                 item.title,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  color: item.isCompleted ? Colors.grey : null,
                   decoration: item.isCompleted ? TextDecoration.lineThrough : null,
                 ),
               ),
               Text(
                 item.description,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
             ],
           ),
         ),

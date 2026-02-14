@@ -6,6 +6,7 @@ import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/screens/search_screen.dart';
 import 'package:gamelog/widgets/empty_state_widget.dart';
 import 'package:gamelog/widgets/game_card.dart';
+import 'package:gamelog/widgets/sort_menu.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -18,6 +19,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Now Playing'),
         actions: [
+          const SortMenu(),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'Search All Games',

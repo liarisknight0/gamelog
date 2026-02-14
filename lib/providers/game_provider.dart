@@ -1,6 +1,7 @@
 import 'package:gamelog/models/game.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Mandatory for code generation
 part 'game_provider.g.dart';

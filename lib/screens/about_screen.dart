@@ -25,7 +25,7 @@ class AboutScreen extends StatelessWidget {
             ),
             SizedBox(height: 24),
             Text(
-              'GameLog is a simple, offline-first app designed to help you conquer your video game backlog. It was built with Flutter by a passionate developer.',
+              'GameLog is a simple, offline-first app designed to help you conquer your video game backlog. It is my first step into Software development. ----Liaris Knight',
             ),
             // The support button has been removed from this screen.
           ],
