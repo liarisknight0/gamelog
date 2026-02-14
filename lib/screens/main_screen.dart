@@ -52,7 +52,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Enjoying GameLog?'),
         content: const Text(
-          "GameLog is proudly ad-free, and that's thanks to support from users like you.\n\nEvery January, 10% of all support received is donated to charity. Your contribution makes a real difference!",
+          "Help us make the app better"
         ),
         actions: [
           TextButton(

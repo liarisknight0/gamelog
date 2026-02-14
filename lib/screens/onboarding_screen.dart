@@ -31,17 +31,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // For now, we use placeholders.
   final List<OnboardingPageData> _pages = [
     OnboardingPageData(
-      imagePath: 'assets/images/onboarding1.png', // You will need to create these images
+      imagePath: 'assets/images/icon.png', // You will need to create these images
       title: 'Welcome to GameLog!',
       description: 'Your personal space to track, manage, and conquer your video game collection.',
     ),
     OnboardingPageData(
-      imagePath: 'assets/images/onboarding2.png',
+      imagePath: 'assets/images/icon.png',
       title: 'Organize Your Library',
       description: 'Effortlessly move games between your Backlog, Now Playing, and Archive lists with a simple swipe.',
     ),
     OnboardingPageData(
-      imagePath: 'assets/images/onboarding3.png',
+      imagePath: 'assets/images/icon.png',
       title: 'Never Forget a Game',
       description: "Keep your thoughts organized and your gaming journey on track. Let's get started!",
     ),
