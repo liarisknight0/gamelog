@@ -2,21 +2,35 @@ import 'package:gamelog/models/game.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-// This line is mandatory for the generator to work
+// Mandatory for code generation
 part 'game_provider.g.dart';
 
+/// 1. THE SORTING STATE
+/// Defines how we want to organize our lists.
+enum GameSortOption { alphabetical, dateAdded, rating }
+
+@Riverpod(keepAlive: true)
+class GameSort extends _$GameSort {
+  @override
+  GameSortOption build() => GameSortOption.dateAdded; // Default sort
+
+  void setSort(GameSortOption option) => state = option;
+}
+
+/// 2. THE MASTER LIST
+/// Manages the raw data coming directly from Hive.
 @Riverpod(keepAlive: true)
 class GameList extends _$GameList {
   late Box<Game> _box;
 
   @override
   List<Game> build() {
-    // Initialize the box and return the current list of games
     _box = Hive.box<Game>('games');
     return _box.values.toList();
   }
 
-  // Updates the state with whatever is currently in the Hive database
+  /// Refreshes the state from the database.
+  /// Call this after manual Hive operations or imports.
   void refresh() {
     state = _box.values.toList();
   }
@@ -38,39 +52,76 @@ class GameList extends _$GameList {
   }
 }
 
-// --- FILTERED PROVIDERS (Computed States) ---
+/// 3. HELPER FOR SORTING
+/// A private utility to sort lists based on user preference.
+List<Game> _applySort(List<Game> list, GameSortOption option) {
+  final sortedList = List<Game>.from(list);
+  switch (option) {
+    case GameSortOption.alphabetical:
+      sortedList.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      break;
+    case GameSortOption.rating:
+    // Sort by rating descending (highest first)
+      sortedList.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
+      break;
+    case GameSortOption.dateAdded:
+    // Sort by date added descending (newest first)
+      sortedList.sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
+      break;
+  }
+  return sortedList;
+}
+
+/// 4. FILTERED & SORTED PROVIDERS
+/// These are what the UI screens (Collection, Backlog, etc.) actually use.
 
 @riverpod
-List<Game> collection(CollectionRef ref) {
+List<Game> collection(Ref ref) {
   final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) =>
+  final sortOption = ref.watch(gameSortProvider);
+
+  final filtered = allGames.where((game) =>
   game.status != GameStatus.beaten &&
       game.status != GameStatus.backlog
   ).toList();
+
+  return _applySort(filtered, sortOption);
 }
 
 @riverpod
-List<Game> nowPlaying(NowPlayingRef ref) {
+List<Game> nowPlaying(Ref ref) {
   final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) => game.status == GameStatus.nowPlaying).toList();
+  final sortOption = ref.watch(gameSortProvider);
+
+  final filtered = allGames.where((game) => game.status == GameStatus.nowPlaying).toList();
+
+  return _applySort(filtered, sortOption);
 }
 
 @riverpod
-List<Game> archive(ArchiveRef ref) {
+List<Game> archive(Ref ref) {
   final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) =>
+  final sortOption = ref.watch(gameSortProvider);
+
+  final filtered = allGames.where((game) =>
   game.status == GameStatus.beaten ||
       game.status == GameStatus.dropped
   ).toList();
+
+  return _applySort(filtered, sortOption);
 }
 
 @riverpod
-List<Game> backlog(BacklogRef ref) {
+List<Game> backlog(Ref ref) {
   final allGames = ref.watch(gameListProvider);
-  return allGames.where((game) => game.status == GameStatus.backlog).toList();
+  final sortOption = ref.watch(gameSortProvider);
+
+  final filtered = allGames.where((game) => game.status == GameStatus.backlog).toList();
+
+  return _applySort(filtered, sortOption);
 }
 
-// --- SEARCH LOGIC ---
+/// 5. SEARCH LOGIC
 
 @riverpod
 class SearchQuery extends _$SearchQuery {
@@ -81,13 +132,13 @@ class SearchQuery extends _$SearchQuery {
 }
 
 @riverpod
-List<Game> searchResults(SearchResultsRef ref) {
-  final allGames = ref.watch(gameListProvider);
+List<Game> searchResults(Ref ref) {
+  final games = ref.watch(gameListProvider);
   final query = ref.watch(searchQueryProvider).toLowerCase();
 
   if (query.trim().isEmpty) return [];
 
-  return allGames.where((game) {
+  return games.where((game) {
     return game.title.toLowerCase().contains(query);
   }).toList();
 }
