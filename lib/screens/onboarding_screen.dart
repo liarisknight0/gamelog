@@ -42,6 +42,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
     OnboardingPageData(
       imagePath: 'assets/images/icon.png',
+      title: 'Export and Import your Game library',
+      description: "Export and import your game collection with a single tap. It's a breeze!",
+    ),
+    OnboardingPageData(
+      imagePath: 'assets/images/icon.png',
       title: 'Never Forget a Game',
       description: "Keep your thoughts organized and your gaming journey on track. Let's get started!",
     ),

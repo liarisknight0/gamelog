@@ -6,7 +6,7 @@ part of 'game_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$collectionHash() => r'aa49b069517eecc6e5b5771ed441481c6a13d233';
+String _$collectionHash() => r'500f55e1409b2468c389839f8f8e77a77b83b9ca';
 
 /// 4. FILTERED & SORTED PROVIDERS
 /// These are what the UI screens (Collection, Backlog, etc.) actually use.

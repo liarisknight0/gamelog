@@ -81,10 +81,7 @@ List<Game> collection(Ref ref) {
   final allGames = ref.watch(gameListProvider);
   final sortOption = ref.watch(gameSortProvider);
 
-  final filtered = allGames.where((game) =>
-  game.status != GameStatus.beaten &&
-      game.status != GameStatus.backlog
-  ).toList();
+  List<Game> filtered = allGames;
 
   return _applySort(filtered, sortOption);
 }
