@@ -41,7 +41,6 @@ class _SupportScreenState extends State<SupportScreen> {
     RoadmapItem("Digital vs Physical Library", "Mark and filter games as physical or digital.", false),
     RoadmapItem("Collection Worth Tracking", "Track price paid and total library value.", false),
     RoadmapItem("Finished Date Timeline", "Timeline view of games completed over the years.", false),
-
   ];
 
   @override
@@ -60,7 +59,6 @@ class _SupportScreenState extends State<SupportScreen> {
       return;
     }
 
-    // Replace with your actual email address
     const String myEmail = "liarisknight@gmail.com";
     final Uri emailLaunchUri = Uri(
       scheme: 'mailto',
@@ -68,18 +66,39 @@ class _SupportScreenState extends State<SupportScreen> {
       query: 'subject=GameLog Feature Suggestion&body=$text',
     );
 
-    if (await canLaunchUrl(emailLaunchUri)) {
-      await launchUrl(emailLaunchUri);
-      _suggestionController.clear();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Opening your email app...")),
-        );
+    try {
+      if (await canLaunchUrl(emailLaunchUri)) {
+        await launchUrl(emailLaunchUri);
+        _suggestionController.clear();
+      } else {
+        throw 'Could not launch';
       }
-    } else {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Could not open email app.")),
+        );
+      }
+    }
+  }
+
+  /// Opens the "Buy Me a Coffee" link in an external browser.
+  Future<void> _launchBuyMeACoffee() async {
+    // TODO: Replace this with your actual Buy Me a Coffee link
+    const String url = "https://buymeacoffee.com/liarisknight";
+
+    final Uri uri = Uri.parse(url);
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not open support link.")),
         );
       }
     }
@@ -120,7 +139,7 @@ class _SupportScreenState extends State<SupportScreen> {
             decoration: InputDecoration(
               hintText: "I want to see...",
               filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -141,12 +160,20 @@ class _SupportScreenState extends State<SupportScreen> {
 
           // --- SUPPORT BUTTON ---
           Center(
-            child: TextButton.icon(
-              onPressed: () {
-                // Link to your Buy Me a Coffee or Support page
-              },
+            child: FilledButton.icon(
+              onPressed: _launchBuyMeACoffee,
               icon: const Icon(Icons.coffee_rounded),
               label: const Text("Support the Developer"),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Center(
+            child: Text(
+              "Your support helps us keep GameLog ad-free forever.",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),
           const SizedBox(height: 40),
@@ -171,7 +198,7 @@ class _SupportScreenState extends State<SupportScreen> {
             Container(
               width: 2,
               height: 40,
-              color: Colors.grey.withOpacity(0.2),
+              color: Colors.grey.withValues(alpha: 0.2),
             ),
           ],
         ),

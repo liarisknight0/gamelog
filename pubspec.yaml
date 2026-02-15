@@ -35,8 +35,8 @@ dependencies:
 
   # --- STATE MANAGEMENT (RIVERPOD STABLE) ---
   flutter_riverpod: ^2.6.1
-  # We use 2.3.5 specifically to avoid conflicts with flutter_riverpod
-  riverpod_annotation: ^2.3.5
+  # We use 2.4.0 specifically to avoid conflicts with flutter_riverpod
+  riverpod_annotation: ^2.4.0
 
   # --- ICONS ---
   cupertino_icons: ^1.0.8
