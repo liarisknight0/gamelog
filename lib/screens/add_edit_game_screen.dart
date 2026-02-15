@@ -7,7 +7,7 @@ import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/screens/online_search_screen.dart';
 import 'package:gamelog/services/igdb_service.dart';
 import 'package:gamelog/widgets/tag_selector.dart';
-import 'package:hive/hive.dart'; // <-- IMPORTANT: Add this import for Hive
+import 'package:hive/hive.dart';
 
 class AddEditGameScreen extends ConsumerStatefulWidget {
   final Game? game;
@@ -23,12 +23,16 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
 
+  // --- State variables for all game properties ---
   String? _coverUrl;
   String? _summary;
   double? _rating;
   String? _selectedPlatform;
   String? _selectedGenre;
   GameStatus? _selectedStatus;
+  String? _notes; // For Gaming Journal feature
+  bool? _isPhysical; // For Digital vs Physical
+  double? _progress; // For Completion Progress
 
   @override
   void initState() {
@@ -41,8 +45,13 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
       _coverUrl = widget.game!.coverUrl;
       _summary = widget.game!.summary;
       _rating = widget.game!.rating;
+      _notes = widget.game!.notes;
+      _isPhysical = widget.game!.isPhysical;
+      _progress = widget.game!.progress;
     } else {
       _selectedStatus = widget.defaultStatus ?? GameStatus.backlog;
+      _isPhysical = false; // Default to digital for new games
+      _progress = 0.0; // Default progress
     }
   }
 
@@ -62,6 +71,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         _coverUrl = result.coverUrl;
         _summary = result.summary;
         _rating = result.rating;
+        // Best-effort mapping of API strings to our tags
         _selectedPlatform = result.platforms.split(',').first.trim();
         _selectedGenre = result.genres.split(',').first.trim();
       });
@@ -85,6 +95,9 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         coverUrl: _coverUrl,
         summary: _summary,
         rating: _rating,
+        notes: _notes, // Save new fields
+        isPhysical: _isPhysical,
+        progress: _progress,
       );
 
       final notifier = ref.read(gameListProvider.notifier);
@@ -178,7 +191,12 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
             children: [
               Expanded(child: _buildFormFields()),
               const SizedBox(height: 20),
-              _buildSaveButton(),
+              // --- FIX: Wrap the bottom button with SafeArea ---
+              SafeArea(
+                top: false, // Don't add top padding
+                child: _buildSaveButton(),
+              ),
+              // ---------------------------------------------------
             ],
           ),
         ),
@@ -188,65 +206,68 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
 
   Widget _buildFormFields() {
     return ListView(
-        children: [
+      children: [
         if (widget.game == null)
-    Padding(
-        padding: const EdgeInsets.only(bottom: 24.0),
-        child: OutlinedButton.icon(
-            icon: const Icon(Icons.search),
-            label: const Text('Search Online First'),
-            onPressed: _searchOnline,
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24.0),
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.search),
+              label: const Text('Search Online First'),
+              onPressed: _searchOnline,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
             ),
-        ),
-    ),
-          if (_coverUrl != null)
-            Center(
+          ),
+        if (_coverUrl != null)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16.0), // Added some padding below image
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12), // Slightly more rounded
                 child: CachedNetworkImage(
                   imageUrl: _coverUrl!,
-                  height: 150,
+                  height: 180, // Slightly taller image preview
+                  fit: BoxFit.cover,
                   placeholder: (context, url) => const SizedBox(
-                      height: 150,
-                      width: 110,
+                      height: 180, // Match new height
+                      width: 130, // Match new height ratio for typical cover art
                       child: Center(child: CircularProgressIndicator())),
-                  errorWidget: (context, url, error) => const Icon(Icons.error, size: 40),
+                  errorWidget: (context, url, error) => const Icon(Icons.error, size: 50),
                 ),
               ),
             ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _titleController,
-            decoration: const InputDecoration(labelText: 'Title'),
-            validator: (value) => value!.trim().isEmpty ? 'Please enter a title.' : null,
           ),
-          const SizedBox(height: 16),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Platform'),
-            subtitle: Text(_selectedPlatform ?? 'Not selected'),
-            trailing: const Icon(Icons.arrow_drop_down),
-            onTap: _showPlatformSelector,
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Genre'),
-            subtitle: Text(_selectedGenre ?? 'Not selected'),
-            trailing: const Icon(Icons.arrow_drop_down),
-            onTap: _showGenreSelector,
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<GameStatus>(
-            initialValue: _selectedStatus,
-            decoration: const InputDecoration(labelText: 'Status'),
-            items: GameStatus.values.map((status) {
-              return DropdownMenuItem<GameStatus>(value: status, child: Text(_getStatusText(status)));
-            }).toList(),
-            onChanged: (newValue) => setState(() => _selectedStatus = newValue),
-          ),
-        ],
+        TextFormField(
+          controller: _titleController,
+          decoration: const InputDecoration(labelText: 'Title'),
+          validator: (value) => value!.trim().isEmpty ? 'Please enter a title.' : null,
+        ),
+        const SizedBox(height: 16),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Platform'),
+          subtitle: Text(_selectedPlatform ?? 'Not selected'),
+          trailing: const Icon(Icons.arrow_drop_down),
+          onTap: _showPlatformSelector,
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Genre'),
+          subtitle: Text(_selectedGenre ?? 'Not selected'),
+          trailing: const Icon(Icons.arrow_drop_down),
+          onTap: _showGenreSelector,
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<GameStatus>(
+          initialValue: _selectedStatus, // Using initialValue correctly
+          decoration: const InputDecoration(labelText: 'Status'),
+          items: GameStatus.values.map((status) {
+            return DropdownMenuItem<GameStatus>(value: status, child: Text(_getStatusText(status)));
+          }).toList(),
+          onChanged: (newValue) => setState(() => _selectedStatus = newValue),
+        ),
+      ],
     );
   }
 
