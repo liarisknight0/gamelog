@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:gamelog/screens/main_screen.dart';
+import 'package:gamelog/widgets/welcome_dialog.dart'; // <--- NEW IMPORT
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 // A simple data class for our onboarding page content
 class OnboardingPageData {
-  final String imagePath;
+  final IconData icon; // Changed from imagePath to IconData for simplicity
   final String title;
   final String description;
 
   OnboardingPageData({
-    required this.imagePath,
+    required this.icon, // Changed
     required this.title,
     required this.description,
   });
@@ -27,42 +27,41 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _controller = PageController();
   bool _isLastPage = false;
 
-  // This is where you would put your custom illustrations!
-  // For now, we use placeholders.
   final List<OnboardingPageData> _pages = [
     OnboardingPageData(
-      imagePath: 'assets/images/icon.png', // You will need to create these images
+      icon: Icons.auto_stories_outlined, // Using Material Icon as placeholder
       title: 'Welcome to GameLog!',
       description: 'Your personal space to track, manage, and conquer your video game collection.',
     ),
     OnboardingPageData(
-      imagePath: 'assets/images/icon.png',
+      icon: Icons.sync_alt_outlined,
       title: 'Organize Your Library',
       description: 'Effortlessly move games between your Backlog, Now Playing, and Archive lists with a simple swipe.',
     ),
     OnboardingPageData(
-      imagePath: 'assets/images/icon.png',
+      icon: Icons.import_export_outlined,
       title: 'Export and Import your Game library',
       description: "Export and import your game collection with a single tap. It's a breeze!",
     ),
     OnboardingPageData(
-      imagePath: 'assets/images/icon.png',
+      icon: Icons.insights_outlined,
       title: 'Never Forget a Game',
       description: "Keep your thoughts organized and your gaming journey on track. Let's get started!",
     ),
   ];
 
-  // This function is called when the user finishes onboarding
   Future<void> _onboardComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    // Set the flag to true so this screen doesn't show again
     await prefs.setBool('hasSeenOnboarding', true);
 
     if (mounted) {
-      // Use pushReplacement to prevent the user from going back to onboarding
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainScreen()),
+      // --- IMPORTANT CHANGE: Show WelcomeDialog BEFORE navigating to MainScreen ---
+      showDialog(
+        context: context,
+        barrierDismissible: false, // User must choose an option
+        builder: (ctx) => const WelcomeDialog(),
       );
+      // Navigation to MainScreen happens from WITHIN the WelcomeDialog
     }
   }
 
@@ -74,7 +73,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           padding: const EdgeInsets.symmetric(vertical: 24.0),
           child: Column(
             children: [
-              // --- SKIP BUTTON ---
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -82,7 +80,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: const Text('SKIP'),
                 ),
               ),
-              // --- PAGE VIEW ---
               Expanded(
                 child: PageView.builder(
                   controller: _controller,
@@ -95,7 +92,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   itemBuilder: (context, index) {
                     final page = _pages[index];
                     return _buildPage(
-                      imagePath: page.imagePath,
+                      icon: page.icon, // Changed
                       title: page.title,
                       description: page.description,
                     );
@@ -103,8 +100,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // --- BOTTOM NAVIGATION ---
               _buildBottomNavigation(),
             ],
           ),
@@ -113,15 +108,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildPage({required String imagePath, required String title, required String description}) {
+  Widget _buildPage({required IconData icon, required String title, required String description}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Replace with your actual image widget
-          // For now, we use an icon as a placeholder
-          Icon(Icons.image, size: 200, color: Colors.grey.shade700),
+          // --- Changed from Image to Icon for simplicity ---
+          Icon(icon, size: 200, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 48),
           Text(
             title,
@@ -145,7 +139,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // --- PAGE INDICATOR ---
           SmoothPageIndicator(
             controller: _controller,
             count: _pages.length,
@@ -155,8 +148,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               activeDotColor: Theme.of(context).colorScheme.primary,
             ),
           ),
-
-          // --- NEXT / GET STARTED BUTTON ---
           FilledButton(
             onPressed: () {
               if (_isLastPage) {
