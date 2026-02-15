@@ -30,38 +30,14 @@ class CollectionScreen extends ConsumerWidget {
           ? const EmptyStateWidget(
         icon: Icons.collections_bookmark_outlined,
         title: 'Your Collection is Empty',
-        message: "Games you own appear here. Add one from your Backlog or use the '+' button.",
+        message: "All the Games you own appear here.",
       )
           : ListView.builder(
         itemCount: games.length,
         itemBuilder: (context, index) {
           final game = games[index];
-          return Dismissible(
-            key: ValueKey(game.key),
-            background: Container(
-              color: Colors.blue,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 20.0),
-              child: const Icon(Icons.play_circle_outline, color: Colors.white),
-            ),
-            secondaryBackground: Container(
-              color: Colors.green,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20.0),
-              child: const Icon(Icons.archive, color: Colors.white),
-            ),
-            onDismissed: (direction) {
-              HapticFeedback.mediumImpact();
-              if (direction == DismissDirection.startToEnd) { // Swipe Right -> Now Playing
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.nowPlaying);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} moved to Now Playing')));
-              } else { // Swipe Left -> Archive
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.beaten);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} archived')));
-              }
-            },
-            child: GameCard(game: game),
-          );
+          return GameCard(game: game);
+
         },
       ),
     );

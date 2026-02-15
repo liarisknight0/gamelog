@@ -23,16 +23,15 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
 
-  // --- State variables for all game properties ---
   String? _coverUrl;
   String? _summary;
   double? _rating;
   String? _selectedPlatform;
   String? _selectedGenre;
   GameStatus? _selectedStatus;
-  String? _notes; // For Gaming Journal feature
-  bool? _isPhysical; // For Digital vs Physical
-  double? _progress; // For Completion Progress
+  String? _notes;
+  bool? _isPhysical;
+  double? _progress;
 
   @override
   void initState() {
@@ -50,8 +49,8 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
       _progress = widget.game!.progress;
     } else {
       _selectedStatus = widget.defaultStatus ?? GameStatus.backlog;
-      _isPhysical = false; // Default to digital for new games
-      _progress = 0.0; // Default progress
+      _isPhysical = false;
+      _progress = 0.0;
     }
   }
 
@@ -71,7 +70,6 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         _coverUrl = result.coverUrl;
         _summary = result.summary;
         _rating = result.rating;
-        // Best-effort mapping of API strings to our tags
         _selectedPlatform = result.platforms.split(',').first.trim();
         _selectedGenre = result.genres.split(',').first.trim();
       });
@@ -95,7 +93,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         coverUrl: _coverUrl,
         summary: _summary,
         rating: _rating,
-        notes: _notes, // Save new fields
+        notes: _notes,
         isPhysical: _isPhysical,
         progress: _progress,
       );
@@ -136,27 +134,61 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
   }
 
   void _showPlatformSelector() async {
-    final result = await showModalBottomSheet<String>(
+    final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => TagSelector(
-        title: 'Select a Platform',
-        tags: platformTags,
-        currentlySelected: _selectedPlatform,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select a Platform'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TagSelector(
+            title: 'Select a Platform', // <--- FIX HERE: Added required title
+            tags: platformTags,
+            currentlySelected: _selectedPlatform,
+          ),
+        ),
       ),
     );
     if (result != null) setState(() => _selectedPlatform = result);
   }
 
   void _showGenreSelector() async {
-    final result = await showModalBottomSheet<String>(
+    final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => TagSelector(
-        title: 'Select a Genre',
-        tags: genreTags,
-        currentlySelected: _selectedGenre,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select a Genre'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TagSelector(
+            title: 'Select a Genre', // <--- FIX HERE: Added required title
+            tags: genreTags,
+            currentlySelected: _selectedGenre,
+          ),
+        ),
       ),
     );
     if (result != null) setState(() => _selectedGenre = result);
+  }
+
+  void _showStatusSelector() async {
+    final result = await showDialog<GameStatus>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select Status'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: GameStatus.values.map((status) {
+            return ListTile(
+              title: Text(_getStatusText(status)),
+              trailing: _selectedStatus == status ? const Icon(Icons.check, color: Colors.green) : null,
+              onTap: () {
+                Navigator.pop(ctx, status);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+    if (result != null) setState(() => _selectedStatus = result);
   }
 
   String _getStatusText(GameStatus status) {
@@ -191,12 +223,10 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
             children: [
               Expanded(child: _buildFormFields()),
               const SizedBox(height: 20),
-              // --- FIX: Wrap the bottom button with SafeArea ---
               SafeArea(
-                top: false, // Don't add top padding
+                top: false,
                 child: _buildSaveButton(),
               ),
-              // ---------------------------------------------------
             ],
           ),
         ),
@@ -222,16 +252,16 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         if (_coverUrl != null)
           Center(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 16.0), // Added some padding below image
+              padding: const EdgeInsets.only(bottom: 16.0),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12), // Slightly more rounded
+                borderRadius: BorderRadius.circular(12),
                 child: CachedNetworkImage(
                   imageUrl: _coverUrl!,
-                  height: 180, // Slightly taller image preview
+                  height: 180,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => const SizedBox(
-                      height: 180, // Match new height
-                      width: 130, // Match new height ratio for typical cover art
+                      height: 180,
+                      width: 130,
                       child: Center(child: CircularProgressIndicator())),
                   errorWidget: (context, url, error) => const Icon(Icons.error, size: 50),
                 ),
@@ -259,13 +289,12 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
           onTap: _showGenreSelector,
         ),
         const SizedBox(height: 16),
-        DropdownButtonFormField<GameStatus>(
-          initialValue: _selectedStatus, // Using initialValue correctly
-          decoration: const InputDecoration(labelText: 'Status'),
-          items: GameStatus.values.map((status) {
-            return DropdownMenuItem<GameStatus>(value: status, child: Text(_getStatusText(status)));
-          }).toList(),
-          onChanged: (newValue) => setState(() => _selectedStatus = newValue),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Status'),
+          subtitle: Text(_getStatusText(_selectedStatus ?? GameStatus.backlog)),
+          trailing: const Icon(Icons.arrow_drop_down),
+          onTap: _showStatusSelector,
         ),
       ],
     );
