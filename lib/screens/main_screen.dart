@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gamelog/models/game.dart'; // Make sure this is imported to use GameStatus
+import 'package:gamelog/models/game.dart';
 import 'package:gamelog/screens/add_edit_game_screen.dart';
 import 'package:gamelog/screens/archive_screen.dart';
 import 'package:gamelog/screens/backlog_screen.dart';
@@ -8,9 +8,8 @@ import 'package:gamelog/screens/collection_screen.dart';
 import 'package:gamelog/screens/home_screen.dart';
 import 'package:gamelog/screens/profile_screen.dart';
 import 'package:gamelog/screens/support_screen.dart';
-// import 'package:flutter/services.dart'; // This is no longer needed here, moved to main.dart
+import 'package:gamelog/services/backup_service.dart'; // <--- NEW IMPORT
 import 'package:shared_preferences/shared_preferences.dart';
-
 
 // Default to index 2 (Now Playing).
 final mainScreenIndexProvider = StateProvider<int>((ref) => 2);
@@ -37,7 +36,29 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     appOpenCount++;
     await prefs.setInt('appOpenCount', appOpenCount);
 
-    if (appOpenCount < 5) return;
+    // --- NEW: Backup Reminder Logic ---
+    // Show backup reminder every 10 opens after the first 5
+    if (appOpenCount > 5 && appOpenCount % 10 == 0) {
+      final lastBackupReminderDateString = prefs.getString('lastBackupReminderDate');
+      if (lastBackupReminderDateString != null) {
+        final lastReminderDate = DateTime.parse(lastBackupReminderDateString);
+        // Only show if it hasn't been shown recently (e.g., within 7 days)
+        if (DateTime.now().difference(lastReminderDate).inDays < 7) {
+          // If already shown recently, skip for now.
+        } else {
+          if (mounted) _showBackupReminderDialog(context);
+        }
+      } else {
+        // If never shown, show it.
+        if (mounted) _showBackupReminderDialog(context);
+      }
+      // Update last reminder date regardless of whether dialog was shown, to prevent spam
+      await prefs.setString('lastBackupReminderDate', DateTime.now().toIso8601String());
+    }
+    // --- END NEW Backup Reminder Logic ---
+
+    // Existing Support Dialog Logic
+    if (appOpenCount < 5) return; // Keep this check to separate support from backup
 
     final lastPopupDateString = prefs.getString('lastSupportPopupDate');
     if (lastPopupDateString != null) {
@@ -46,9 +67,37 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     }
 
     if (mounted) _showSupportDialog(context);
+    await prefs.setString('lastSupportPopupDate', DateTime.now().toIso8601String()); // Moved this line here
   }
 
-  void _showSupportDialog(BuildContext context) async {
+  // --- NEW: Backup Reminder Dialog ---
+  void _showBackupReminderDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Don\'t Lose Your Games!'),
+        content: const Text(
+            "It looks like you've been using GameLog a lot. Don't forget to export a backup of your collection to Google Drive or email!"
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Later'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          FilledButton(
+            child: const Text('Export Now'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              BackupService.exportBackup(context); // Trigger the export
+            },
+          ),
+        ],
+      ),
+    );
+  }
+  // --- END NEW Backup Reminder Dialog ---
+
+  void _showSupportDialog(BuildContext context) async { // Removed await prefs.setString... from here
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -73,8 +122,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         ],
       ),
     );
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('lastSupportPopupDate', DateTime.now().toIso8601String());
+    // await prefs.setString('lastSupportPopupDate', DateTime.now().toIso8601String()); // Moved up
   }
 
   void _showAddGameMenu(BuildContext context) {
@@ -83,9 +131,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       isScrollControlled: true,
       builder: (ctx) {
         return SafeArea(
-          // Ensure padding from the bottom system navigation bar.
-          // Setting just `bottom: true` or `top: false, bottom: true` is often enough.
-          // The `Container` inside will then respect this padding.
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(
@@ -145,11 +190,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final fabVisible = selectedIndex < 4; // Hide on Profile
 
     return Scaffold(
-      // The SystemChrome in main.dart handles drawing behind bars.
-      // This SafeArea handles padding for content within the Scaffold's body itself.
       body: SafeArea(
-        top: false, // AppBar takes care of top padding
-        bottom: false, // BottomNavigationBar takes care of bottom padding
+        top: false,
+        bottom: false,
         child: screens[selectedIndex],
       ),
 
