@@ -46,47 +46,59 @@ class BackupService {
     }
   }
 
-  /// IMPORT: Robustly picks and reads a JSON file from any source (Drive, Local, etc.)
+  /// IMPORT: Picks file, reads bytes, and performs SMART MERGE
   static Future<void> importBackup(BuildContext context, Function onComplete) async {
     try {
       // 1. Open File Picker
       FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any, // Changed to 'any' because some Cloud providers hide .json
-        withData: true,    // CRITICAL: This loads the file into memory (works for Drive)
+        type: FileType.any,
+        withData: true,    // CRITICAL: Load into memory for Drive/Cloud compatibility
       );
 
       if (result != null && result.files.first.bytes != null) {
-        // 2. Read bytes directly from memory (safest for Cloud storage)
+        // 2. Read bytes directly from memory
         Uint8List fileBytes = result.files.first.bytes!;
         String content = utf8.decode(fileBytes);
         List<dynamic> jsonData = jsonDecode(content);
 
         final box = Hive.box<Game>('games');
+        int addedCount = 0;
 
-        // 3. Clear or Append logic
-        // For v1.0, we append to avoid deleting user's current data accidentally
+        // 3. Smart Merge Logic
         for (var item in jsonData) {
-          final game = Game(
-            title: item['title'] ?? 'Unknown',
-            platform: item['platform'] ?? 'Unknown',
-            genre: item['genre'] ?? 'Unknown',
-            status: GameStatus.values[item['status'] ?? 0],
-            dateAdded: DateTime.parse(item['dateAdded'] ?? DateTime.now().toIso8601String()),
-            coverUrl: item['coverUrl'],
-            summary: item['summary'],
-            rating: (item['rating'] as num?)?.toDouble(),
-            notes: item['notes'],
-            isPhysical: item['isPhysical'] ?? false,
-            progress: (item['progress'] as num?)?.toDouble() ?? 0.0,
+          final String newTitle = item['title'] ?? 'Unknown';
+          final String newPlatform = item['platform'] ?? 'Unknown';
+
+          // Check for existing game with same Title AND Platform
+          final bool exists = box.values.any((existingGame) =>
+          existingGame.title.trim().toLowerCase() == newTitle.trim().toLowerCase() &&
+              existingGame.platform == newPlatform
           );
-          await box.add(game);
+
+          if (!exists) {
+            final game = Game(
+              title: newTitle,
+              platform: newPlatform,
+              genre: item['genre'] ?? 'Unknown',
+              status: GameStatus.values[item['status'] ?? 0],
+              dateAdded: DateTime.parse(item['dateAdded'] ?? DateTime.now().toIso8601String()),
+              coverUrl: item['coverUrl'],
+              summary: item['summary'],
+              rating: (item['rating'] as num?)?.toDouble(),
+              notes: item['notes'],
+              isPhysical: item['isPhysical'] ?? false,
+              progress: (item['progress'] as num?)?.toDouble() ?? 0.0,
+            );
+            await box.add(game);
+            addedCount++;
+          }
         }
 
         onComplete(); // Refresh Riverpod state
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Success! Games imported.')),
+            SnackBar(content: Text('Import Complete: $addedCount new games added.')),
           );
         }
       }
