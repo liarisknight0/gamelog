@@ -7,80 +7,39 @@ import 'package:gamelog/widgets/loading_overlay.dart';
 class AuthScreen extends ConsumerWidget {
   const AuthScreen({super.key});
 
-  // Helper to navigate to main screen and CLEAR history
-  void _navigateToMainScreen(BuildContext context) {
-    if (context.mounted) {
-      // pushAndRemoveUntil deletes the 'Back' history
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-            (route) => false,
-      );
-    }
-  }
-
-  Future<void> _handleGoogleSignInAndImport(BuildContext context, WidgetRef ref) async {
-    // 1. Show Loading while signing in
+  // Handle Google Login
+  Future<void> _handleGoogleSignIn(BuildContext context, WidgetRef ref) async {
     LoadingOverlay.show(context);
 
     try {
       final cloudSync = ref.read(cloudSyncServiceProvider);
       final account = await cloudSync.signInWithGoogle(context);
 
-      // 2. IMPORTANT: Hide Loading IMMEDIATELY after sign-in attempt
-      LoadingOverlay.hide();
+      LoadingOverlay.hide(); // Hide spinner immediately
 
       if (account != null && context.mounted) {
-        // Show a small message so the user knows what's happening during the wait
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign-in successful. Checking for backups...')),
-        );
-
-        // 3. The 10-Second Delay (As requested)
-        await Future.delayed(const Duration(seconds: 10));
-
-        if (!context.mounted) return;
-
-        // 4. Now Show the Dialog (Screen is clear)
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (dialogCtx) => AlertDialog(
-            title: const Text('Import from Google Drive?'),
-            content: const Text(
-                'Would you like to download your GameLog backup from Google Drive now? This will replace your current local data.'
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(dialogCtx).pop();
-                  _navigateToMainScreen(context);
-                },
-                child: const Text('No, Start Fresh'),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  Navigator.of(dialogCtx).pop(); // Close dialog first
-
-                  // Show loading again strictly for the download part
-                  LoadingOverlay.show(context);
-                  await cloudSync.downloadBackupFromDrive(context);
-                  LoadingOverlay.hide();
-
-                  if (context.mounted) {
-                    _navigateToMainScreen(context);
-                  }
-                },
-                child: const Text('Yes, Import Data'),
-              ),
-            ],
+        // Navigate IMMEDIATELY to MainScreen
+        // Pass 'checkDriveBackup: true' to trigger the 10s delayed popup
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => const MainScreen(checkDriveBackup: true),
           ),
+              (route) => false,
         );
       }
     } catch (e) {
-      // Safety net: ensure loading is hidden if anything crashes
       LoadingOverlay.hide();
       debugPrint("Auth Error: $e");
     }
+  }
+
+  // Handle Guest Mode
+  void _continueAsGuest(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      // Guest mode: checkDriveBackup is false (default)
+      MaterialPageRoute(builder: (_) => const MainScreen()),
+          (route) => false,
+    );
   }
 
   @override
@@ -121,7 +80,13 @@ class AuthScreen extends ConsumerWidget {
                     height: 24,
                   ),
                   label: const Text('Sign in with Google'),
-                  onPressed: () => _handleGoogleSignInAndImport(context, ref),
+                  onPressed: () => _handleGoogleSignIn(context, ref),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: Theme.of(context).colorScheme.onSurface, width: 0.5),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -130,7 +95,7 @@ class AuthScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 50,
                 child: FilledButton(
-                  onPressed: () => _navigateToMainScreen(context),
+                  onPressed: () => _continueAsGuest(context),
                   child: const Text('Continue as Guest'),
                 ),
               ),
