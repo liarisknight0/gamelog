@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gamelog/models/game.dart';
 import 'package:gamelog/providers/game_provider.dart';
-import 'package:gamelog/providers/sync_status_provider.dart'; // <--- NEW IMPORT
+import 'package:gamelog/providers/sync_status_provider.dart';
 
 /// Custom HTTP client that injects Google auth headers
 class GoogleAuthHttpClient extends http.BaseClient {
@@ -42,33 +42,73 @@ class CloudSyncService {
 
   const CloudSyncService(this._ref);
 
-  /// INTERNAL: Returns authenticated client without UI feedback (for AutoSync)
+  // --- INTERNAL HELPER (No UI) ---
   Future<http.Client?> _getHttpClient() async {
     final GoogleSignInAccount? account = _ref.read(googleSignInAccountProvider);
-
-    // ignore: unnecessary_null_comparison
-    if (account == null)
+    if (account == null) return null;
 
     try {
-      final authHeaders = await account.authHeaders;
-      if (authHeaders == null) return null;
-      return GoogleAuthHttpClient(authHeaders);
+      // Re-authentication check
+      if (await _ref.read(googleSignInProvider).isSignedIn()) {
+        final authHeaders = await account.authHeaders;
+        return GoogleAuthHttpClient(authHeaders);
+      }
+      return null;
     } catch (e) {
       debugPrint('Auth header error: $e');
       return null;
     }
   }
 
-  // --- AUTHENTICATION ---
+  // --- HELPER WITH UI (For manual buttons) ---
+  Future<http.Client?> _getAuthenticatedHttpClient(BuildContext context) async {
+    final GoogleSignInAccount? account = _ref.read(googleSignInAccountProvider);
+
+    // ignore: unnecessary_null_comparison
+    if (account == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please sign in to Google first.')),
+        );
+      }
+      return null;
+    }
+
+    try {
+      final authHeaders = await account.authHeaders;
+      // ignore: unnecessary_null_comparison
+      if (authHeaders == null) {
+        // Force a re-login attempt if headers are missing
+        await _ref.read(googleSignInProvider).signInSilently();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Refreshed session. Please try again.')),
+          );
+        }
+        return null;
+      }
+      return GoogleAuthHttpClient(authHeaders);
+    } catch (e) {
+      debugPrint('Failed to obtain auth headers: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Connection error: $e')),
+        );
+      }
+      return null;
+    }
+  }
+
+  // --- AUTH METHODS ---
 
   Future<GoogleSignInAccount?> signInWithGoogle(BuildContext context) async {
     final googleSignIn = _ref.read(googleSignInProvider);
     try {
       final account = await googleSignIn.signIn();
+      // Update state IMMEDIATELY on success
       _ref.read(googleSignInAccountProvider.notifier).state = account;
 
       if (account != null) {
-        // If sign-in success, assume synced or ready to sync
         _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
       }
       return account;
@@ -76,7 +116,7 @@ class CloudSyncService {
       debugPrint('Google Sign-In error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign-In failed: $e')),
+          SnackBar(content: Text('Sign-In failed: $e')),
         );
       }
       return null;
@@ -86,14 +126,18 @@ class CloudSyncService {
   Future<GoogleSignInAccount?> signInSilently() async {
     final googleSignIn = _ref.read(googleSignInProvider);
     try {
+      // Try to get the account
       final account = await googleSignIn.signInSilently();
-      _ref.read(googleSignInAccountProvider.notifier).state = account;
 
+      // FIX: Only update state if we found a valid account.
+      // If it returns null (failed), DO NOT overwrite existing state with null.
       if (account != null) {
+        _ref.read(googleSignInAccountProvider.notifier).state = account;
         _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
       }
       return account;
     } catch (e) {
+      // FIX: Do nothing on error. Do not log the user out.
       return null;
     }
   }
@@ -102,22 +146,18 @@ class CloudSyncService {
     final googleSignIn = _ref.read(googleSignInProvider);
     await googleSignIn.signOut();
     _ref.read(googleSignInAccountProvider.notifier).state = null;
-    // Hide the sync icon when signed out
     _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.hidden);
   }
 
   // --- AUTO SYNC (Background) ---
 
-  /// Uploads data silently. Updates SyncStatus (Blue -> Green/Red).
   Future<void> autoSync() async {
     final account = _ref.read(googleSignInAccountProvider);
-    // If not signed in, do nothing (or hide status)
     if (account == null) {
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.hidden);
       return;
     }
 
-    // 1. Set Status: SYNCING (Blue)
     _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.syncing);
 
     final httpClient = await _getHttpClient();
@@ -130,7 +170,6 @@ class CloudSyncService {
       final driveApi = drive.DriveApi(httpClient);
       final box = Hive.box<Game>('games');
 
-      // Prepare Data
       final data = box.values.map((game) {
         return {
           'title': game.title,
@@ -152,7 +191,6 @@ class CloudSyncService {
       const mimeType = 'application/json';
       final Uint8List fileBytes = utf8.encode(jsonString);
 
-      // Check for existing file
       final files = await driveApi.files.list(
         q: "name = '$fileName' and 'appDataFolder' in parents",
         spaces: 'appDataFolder',
@@ -165,61 +203,40 @@ class CloudSyncService {
       );
 
       if (files.files != null && files.files!.isNotEmpty) {
-        // Update existing
         final fileId = files.files!.first.id!;
         await driveApi.files.update(drive.File(), fileId, uploadMedia: media);
       } else {
-        // Create new
         await driveApi.files.create(
           drive.File()..name = fileName..parents = const ['appDataFolder'],
           uploadMedia: media,
         );
       }
 
-      // 2. Set Status: SYNCED (Green)
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
 
     } catch (e) {
       debugPrint("Auto Sync Error: $e");
-      // 3. Set Status: UNSYNCED (Red)
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.unsynced);
     }
   }
 
-  // --- MANUAL METHODS (For Profile Screen) ---
+  // --- MANUAL METHODS (Profile Screen) ---
 
   Future<void> uploadBackupToDrive(BuildContext context) async {
-    // Reuse the autoSync logic, but add UI feedback
-    await autoSync();
-
+    await autoSync(); // Reuse logic
     if (context.mounted) {
       final status = _ref.read(syncStatusNotifierProvider);
       if (status == SyncState.synced) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backup uploaded to Google Drive!')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup uploaded successfully!')));
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Upload failed. Check your connection.')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload failed. Check internet connection.')));
       }
     }
   }
 
   Future<void> downloadBackupFromDrive(BuildContext context) async {
-    // Set status to syncing while downloading
-    _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.syncing);
-
-    final httpClient = await _getHttpClient();
-    if (httpClient == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please sign in to Google first.')),
-        );
-      }
-      _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.unsynced);
-      return;
-    }
+    final httpClient = await _getAuthenticatedHttpClient(context);
+    if (httpClient == null) return; // Error handled inside helper
 
     final driveApi = drive.DriveApi(httpClient);
     const fileName = 'gamelog_backup.json';
@@ -236,8 +253,6 @@ class CloudSyncService {
             const SnackBar(content: Text('No backup found on Google Drive')),
           );
         }
-        // Nothing found is technically "synced" (nothing to fetch)
-        _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
         return;
       }
 
@@ -256,7 +271,6 @@ class CloudSyncService {
       final box = Hive.box<Game>('games');
       int addedCount = 0;
 
-      // SMART MERGE LOGIC
       for (final item in decoded) {
         final String newTitle = item['title'] ?? 'Unknown';
         final String newPlatform = item['platform'] ?? 'Unknown';
@@ -287,7 +301,6 @@ class CloudSyncService {
       }
 
       _ref.read(gameListProvider.notifier).refresh();
-      // Set Status: SYNCED (Green)
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
 
       if (context.mounted) {
@@ -297,7 +310,6 @@ class CloudSyncService {
       }
     } catch (e) {
       debugPrint('Download error: $e');
-      _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.unsynced);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to download backup: $e')),

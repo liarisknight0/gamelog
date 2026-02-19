@@ -24,7 +24,7 @@ class _SupportScreenState extends State<SupportScreen> {
     RoadmapItem("API Integration", "Automated game search, metadata, and cover art.", true),
     RoadmapItem("Sorting & Filtering", "Advanced sorting and filters for faster navigation.", true),
     RoadmapItem("Import / Export Data", "Export and back up your library in supported formats.", true),
-    RoadmapItem("Stats Dashboard", "Visual insights into playtime, completion, and habits.", false),
+    RoadmapItem("Google Account Sync", "Login with your google account.", true),
     RoadmapItem("Social Features", "Share your backlog and progress with friends.", false),
     RoadmapItem("HLTB Integration", "Show estimated main and completionist playtime on game details.", false),
     RoadmapItem("Random Game Selector", "Pick a random backlog game to fight choice paralysis.", false),
