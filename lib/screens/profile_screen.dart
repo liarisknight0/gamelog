@@ -1,12 +1,13 @@
-import 'dart:io';
+import 'dart:io'; // Required for FileImage
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart'; // Required for ImagePicker
 import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/providers/user_settings_provider.dart';
 import 'package:gamelog/screens/about_screen.dart';
 import 'package:gamelog/screens/app_settings_screen.dart';
 import 'package:gamelog/screens/support_screen.dart';
+import 'package:gamelog/services/cloud_sync_service.dart'; // <--- IMPORTANT: New import for Cloud Sync
 import 'package:gamelog/widgets/profile_menu_widgets.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -50,9 +51,8 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   /// Opens the gallery to pick a new profile picture.
-  Future<void> _pickProfileImage(WidgetRef ref) async {
+  Future<void> _pickProfileImage(WidgetRef ref, BuildContext context) async {
     final ImagePicker picker = ImagePicker();
-    // Pick an image from the local gallery
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 80, // Compress slightly to save space
@@ -60,6 +60,12 @@ class ProfileScreen extends ConsumerWidget {
 
     if (image != null) {
       ref.read(profileImageProvider.notifier).updateImage(image.path);
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image selection cancelled.')),
+        );
+      }
     }
   }
 
@@ -95,6 +101,7 @@ class ProfileScreen extends ConsumerWidget {
     final userName = ref.watch(userNameProvider);
     final profilePath = ref.watch(profileImageProvider);
     final totalGames = ref.watch(gameListProvider).length;
+    final googleAccount = ref.watch(googleSignInAccountProvider); // <--- Watch Google Account
 
     return Scaffold(
       appBar: AppBar(
@@ -108,16 +115,16 @@ class ProfileScreen extends ConsumerWidget {
           // --- PROFILE PICTURE SECTION ---
           Center(
             child: GestureDetector(
-              onTap: () => _pickProfileImage(ref),
+              onTap: () => _pickProfileImage(ref, context), // Pass context
               child: Stack(
                 children: [
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    backgroundImage: profilePath != null
+                    backgroundImage: profilePath != null && File(profilePath).existsSync() // Check if file exists
                         ? FileImage(File(profilePath))
                         : null,
-                    child: profilePath == null
+                    child: profilePath == null || !File(profilePath).existsSync()
                         ? Icon(Icons.person,
                         size: 60,
                         color: Theme.of(context).colorScheme.primary)
@@ -159,7 +166,55 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           const Divider(indent: 16, endIndent: 16),
 
-          // --- MENU SECTIONS ---
+          // --- NEW: Google Sync Section ---
+          const SectionTitle(title: 'Cloud Sync'),
+          googleAccount == null
+              ? ProfileMenuItem(
+            icon: Icons.person_add_alt_1_outlined,
+            title: 'Sign in with Google',
+            onTap: () => ref.read(cloudSyncServiceProvider).signInWithGoogle(context),
+          )
+              : Column(
+            children: [
+              ListTile(
+                leading: CircleAvatar(
+                  radius: 16,
+                  backgroundImage: googleAccount.photoUrl != null
+                      ? NetworkImage(googleAccount.photoUrl!)
+                      : null, // Placeholder if no photoUrl
+                  backgroundColor: Colors.grey.withOpacity(0.3),
+                  child: googleAccount.photoUrl == null
+                      ? const Icon(Icons.person, size: 16, color: Colors.white)
+                      : null,
+                ),
+                title: Text(googleAccount.displayName ?? 'Google User'),
+                subtitle: Text(googleAccount.email),
+              ),
+              ProfileMenuItem(
+                icon: Icons.cloud_upload_outlined,
+                title: 'Upload to Drive Now',
+                onTap: () => ref.read(cloudSyncServiceProvider).uploadBackupToDrive(context),
+              ),
+              ProfileMenuItem(
+                icon: Icons.cloud_download_outlined,
+                title: 'Download from Drive Now',
+                // When downloading, we should refresh the main game list
+                onTap: () async {
+                  await ref.read(cloudSyncServiceProvider).downloadBackupFromDrive(context);
+                  ref.read(gameListProvider.notifier).refresh(); // Important to refresh UI after download
+                },
+              ),
+              ProfileMenuItem(
+                icon: Icons.logout,
+                title: 'Sign out of Google',
+                textColor: Colors.orange,
+                onTap: () => ref.read(cloudSyncServiceProvider).signOutGoogle(),
+              ),
+            ],
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          // --- END NEW Google Sync Section ---
+
           const SectionTitle(title: 'Settings'),
           ProfileMenuItem(
             icon: Icons.settings_outlined,
@@ -189,8 +244,8 @@ class ProfileScreen extends ConsumerWidget {
             },
           ),
           ProfileMenuItem(
-            icon: Icons.rocket_launch_outlined, // Changed to a roadmap/rocket icon
-            title: 'Support & Feature Drop', // Updated Title
+            icon: Icons.rocket_launch_outlined,
+            title: 'Support & Feature Drop',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (ctx) => const SupportScreen()),
@@ -219,8 +274,9 @@ class ProfileScreen extends ConsumerWidget {
                     TextButton(
                         child: const Text('Log Out', style: TextStyle(color: Colors.red)),
                         onPressed: () {
-                          // Logout logic would go here
-                          Navigator.of(ctx).pop();
+                          // TODO: Implement actual app-level logout logic here (e.g., clear all user data, navigate to login)
+                          Navigator.of(ctx).pop(); // Close dialog
+                          // Consider navigating to a login/onboarding screen or clearing all app state
                         }
                     ),
                   ],

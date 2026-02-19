@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:gamelog/widgets/welcome_dialog.dart'; // <--- NEW IMPORT
+import 'package:gamelog/screens/auth_screen.dart'; // <--- Correct import now
+// REMOVED: import 'package:gamelog/widgets/welcome_dialog.dart'; // No longer needed
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 // A simple data class for our onboarding page content
 class OnboardingPageData {
-  final IconData icon; // Changed from imagePath to IconData for simplicity
+  final IconData icon;
   final String title;
   final String description;
 
-  OnboardingPageData({
-    required this.icon, // Changed
+  const OnboardingPageData({ // Added const
+    required this.icon,
     required this.title,
     required this.description,
   });
@@ -27,9 +28,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _controller = PageController();
   bool _isLastPage = false;
 
-  final List<OnboardingPageData> _pages = [
+  final List<OnboardingPageData> _pages = const [ // Added const
     OnboardingPageData(
-      icon: Icons.auto_stories_outlined, // Using Material Icon as placeholder
+      icon: Icons.auto_stories_outlined,
       title: 'Welcome to GameLog!',
       description: 'Your personal space to track, manage, and conquer your video game collection.',
     ),
@@ -37,11 +38,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       icon: Icons.sync_alt_outlined,
       title: 'Organize Your Library',
       description: 'Effortlessly move games between your Backlog, Now Playing, and Archive lists with a simple swipe.',
-    ),
-    OnboardingPageData(
-      icon: Icons.import_export_outlined,
-      title: 'Export and Import your Game library',
-      description: "Export and import your game collection with a single tap. It's a breeze!",
     ),
     OnboardingPageData(
       icon: Icons.insights_outlined,
@@ -55,13 +51,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     await prefs.setBool('hasSeenOnboarding', true);
 
     if (mounted) {
-      // --- IMPORTANT CHANGE: Show WelcomeDialog BEFORE navigating to MainScreen ---
-      showDialog(
-        context: context,
-        barrierDismissible: false, // User must choose an option
-        builder: (ctx) => const WelcomeDialog(),
+      // Navigate directly to AuthScreen
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AuthScreen()),
       );
-      // Navigation to MainScreen happens from WITHIN the WelcomeDialog
     }
   }
 
@@ -92,7 +85,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   itemBuilder: (context, index) {
                     final page = _pages[index];
                     return _buildPage(
-                      icon: page.icon, // Changed
+                      icon: page.icon,
                       title: page.title,
                       description: page.description,
                     );
@@ -114,7 +107,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // --- Changed from Image to Icon for simplicity ---
           Icon(icon, size: 200, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 48),
           Text(
