@@ -2,6 +2,7 @@ import 'package:gamelog/models/game.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gamelog/services/cloud_sync_service.dart';
 
 // Mandatory for code generation
 part 'game_provider.g.dart';
@@ -36,23 +37,32 @@ class GameList extends _$GameList {
     state = _box.values.toList();
   }
 
+  // --- TRIGGER AUTO SYNC HERE ---
+  void _triggerSync() {
+    // We read the service and call autoSync.
+    // It's fire-and-forget (we don't await it here so UI doesn't freeze).
+    ref.read(cloudSyncServiceProvider).autoSync();
+  }
+
   void addGame(Game game) {
     _box.add(game);
     refresh();
+    _triggerSync(); // <--- Add this
   }
 
   void deleteGame(Game game) {
     game.delete();
     refresh();
+    _triggerSync(); // <--- Add this
   }
 
   void updateGameStatus(Game game, GameStatus newStatus) {
     game.status = newStatus;
     game.save();
     refresh();
+    _triggerSync(); // <--- Add this
   }
 }
-
 /// 3. HELPER FOR SORTING
 /// A private utility to sort lists based on user preference.
 List<Game> _applySort(List<Game> list, GameSortOption option) {

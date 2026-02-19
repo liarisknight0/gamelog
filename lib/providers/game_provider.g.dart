@@ -94,7 +94,7 @@ final gameSortProvider = NotifierProvider<GameSort, GameSortOption>.internal(
 );
 
 typedef _$GameSort = Notifier<GameSortOption>;
-String _$gameListHash() => r'85482473afb61da89f7d603990b6c344913f30bf';
+String _$gameListHash() => r'd3a8a4525dd0cb2dabb7f3caac0a1bf2dc278309';
 
 /// 2. THE MASTER LIST
 /// Manages the raw data coming directly from Hive.

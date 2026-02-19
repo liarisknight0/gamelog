@@ -7,6 +7,7 @@ import 'package:gamelog/screens/search_screen.dart';
 import 'package:gamelog/widgets/empty_state_widget.dart';
 import 'package:gamelog/widgets/game_card.dart';
 import 'package:gamelog/widgets/sort_menu.dart';
+import 'package:gamelog/widgets/sync_indicator.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Now Playing'),
         actions: [
+          const SyncIndicator(),
           const SortMenu(),
           IconButton(
             icon: const Icon(Icons.search),
