@@ -11,7 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/models/game.dart';
 import 'package:gamelog/providers/game_provider.dart';
 
-/// Custom HTTP client that injects Google auth headers
 class GoogleAuthHttpClient extends http.BaseClient {
   final Map<String, String> _headers;
   final http.Client _inner = http.Client();
@@ -25,14 +24,12 @@ class GoogleAuthHttpClient extends http.BaseClient {
   }
 }
 
-/// GoogleSignIn provider
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
   return GoogleSignIn(
     scopes: const [drive.DriveApi.driveAppdataScope],
   );
 });
 
-/// Holds the signed-in Google account
 final googleSignInAccountProvider =
 StateProvider<GoogleSignInAccount?>((ref) => null);
 
@@ -41,11 +38,10 @@ class CloudSyncService {
 
   const CloudSyncService(this._ref);
 
-  /// Returns an authenticated HTTP client for Google APIs
   Future<http.Client?> _getAuthenticatedHttpClient(BuildContext context) async {
-    final GoogleSignInAccount? account =
-    _ref.read(googleSignInAccountProvider);
+    final GoogleSignInAccount? account = _ref.read(googleSignInAccountProvider);
 
+    // ignore: unnecessary_null_comparison
     if (account == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -60,69 +56,40 @@ class CloudSyncService {
       return GoogleAuthHttpClient(authHeaders);
     } catch (e) {
       debugPrint('Failed to obtain auth headers: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to get Google authentication headers')),
-        );
-      }
       return null;
     }
   }
 
-
-  /// Interactive Google sign-in
-  Future<GoogleSignInAccount?> signInWithGoogle(
-      BuildContext context) async {
+  Future<GoogleSignInAccount?> signInWithGoogle(BuildContext context) async {
     final googleSignIn = _ref.read(googleSignInProvider);
-
     try {
       final account = await googleSignIn.signIn();
       _ref.read(googleSignInAccountProvider.notifier).state = account;
-
-      if (account == null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Google Sign-In cancelled.')),
-        );
-      }
-
       return account;
     } catch (e) {
       debugPrint('Google Sign-In error: $e');
       _ref.read(googleSignInAccountProvider.notifier).state = null;
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign-In failed: $e')),
-        );
-      }
       return null;
     }
   }
 
-  /// Silent sign-in
   Future<GoogleSignInAccount?> signInSilently() async {
     final googleSignIn = _ref.read(googleSignInProvider);
-
     try {
       final account = await googleSignIn.signInSilently();
       _ref.read(googleSignInAccountProvider.notifier).state = account;
       return account;
     } catch (e) {
-      debugPrint('Silent sign-in error: $e');
-      _ref.read(googleSignInAccountProvider.notifier).state = null;
       return null;
     }
   }
 
-  /// Sign out
   Future<void> signOutGoogle() async {
     final googleSignIn = _ref.read(googleSignInProvider);
     await googleSignIn.signOut();
     _ref.read(googleSignInAccountProvider.notifier).state = null;
-    debugPrint('Google user signed out');
   }
 
-  /// Upload Hive data to Google Drive appDataFolder
   Future<void> uploadBackupToDrive(BuildContext context) async {
     final httpClient = await _getAuthenticatedHttpClient(context);
     if (httpClient == null) return;
@@ -185,7 +152,6 @@ class CloudSyncService {
         );
       }
     } catch (e) {
-      debugPrint('Upload error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to upload backup: $e')),
@@ -194,7 +160,6 @@ class CloudSyncService {
     }
   }
 
-  /// Download backup and restore Hive data
   Future<void> downloadBackupFromDrive(BuildContext context) async {
     final httpClient = await _getAuthenticatedHttpClient(context);
     if (httpClient == null) return;
@@ -229,41 +194,53 @@ class CloudSyncService {
       }
 
       final decoded = jsonDecode(utf8.decode(bytes)) as List<dynamic>;
-
       final box = Hive.box<Game>('games');
-      await box.clear();
+
+      // NOTE: We DO NOT box.clear() anymore. We merge.
+      int addedCount = 0;
 
       for (final item in decoded) {
-        await box.add(
-          Game(
-            title: item['title'] ?? 'Unknown',
-            platform: item['platform'] ?? 'Unknown',
-            genre: item['genre'] ?? 'Unknown',
-            status: GameStatus.values[item['status'] ?? 0],
-            dateAdded: DateTime.parse(
-              item['dateAdded'] ??
-                  DateTime.now().toIso8601String(),
-            ),
-            coverUrl: item['coverUrl'],
-            summary: item['summary'],
-            rating: (item['rating'] as num?)?.toDouble(),
-            notes: item['notes'],
-            isPhysical: item['isPhysical'] ?? false,
-            progress: (item['progress'] as num?)?.toDouble() ?? 0.0,
-          ),
+        final String newTitle = item['title'] ?? 'Unknown';
+        final String newPlatform = item['platform'] ?? 'Unknown';
+
+        // --- DUPLICATE CHECK LOGIC ---
+        // Check if we already have a game with the same Title AND Platform.
+        // We trim spaces and use lowerCase to be safe (e.g. "Halo " vs "Halo").
+        final bool exists = box.values.any((existingGame) =>
+        existingGame.title.trim().toLowerCase() == newTitle.trim().toLowerCase() &&
+            existingGame.platform == newPlatform
         );
+
+        if (!exists) {
+          await box.add(
+            Game(
+              title: newTitle,
+              platform: newPlatform,
+              genre: item['genre'] ?? 'Unknown',
+              status: GameStatus.values[item['status'] ?? 0],
+              dateAdded: DateTime.parse(
+                item['dateAdded'] ?? DateTime.now().toIso8601String(),
+              ),
+              coverUrl: item['coverUrl'],
+              summary: item['summary'],
+              rating: (item['rating'] as num?)?.toDouble(),
+              notes: item['notes'],
+              isPhysical: item['isPhysical'] ?? false,
+              progress: (item['progress'] as num?)?.toDouble() ?? 0.0,
+            ),
+          );
+          addedCount++;
+        }
       }
 
       _ref.read(gameListProvider.notifier).refresh();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Games restored from Google Drive')),
+          SnackBar(content: Text('Sync Complete: $addedCount new games added.')),
         );
       }
     } catch (e) {
-      debugPrint('Download error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to download backup: $e')),
