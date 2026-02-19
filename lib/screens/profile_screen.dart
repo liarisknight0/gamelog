@@ -182,7 +182,7 @@ class ProfileScreen extends ConsumerWidget {
                   backgroundImage: googleAccount.photoUrl != null
                       ? NetworkImage(googleAccount.photoUrl!)
                       : null, // Placeholder if no photoUrl
-                  backgroundColor: Colors.grey.withOpacity(0.3),
+                  backgroundColor: Colors.grey.withValues(alpha:0.3),
                   child: googleAccount.photoUrl == null
                       ? const Icon(Icons.person, size: 16, color: Colors.white)
                       : null,

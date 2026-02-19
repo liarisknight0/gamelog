@@ -52,8 +52,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     if (mounted) {
       // Navigate directly to AuthScreen
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const AuthScreen()),
+            (route) => false, // This condition removes ALL previous routes
       );
     }
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/screens/main_screen.dart';
 import 'package:gamelog/services/cloud_sync_service.dart';
 import 'package:gamelog/widgets/loading_overlay.dart';
@@ -8,59 +7,79 @@ import 'package:gamelog/widgets/loading_overlay.dart';
 class AuthScreen extends ConsumerWidget {
   const AuthScreen({super.key});
 
-  // Helper to navigate to the main screen after an action
+  // Helper to navigate to main screen and CLEAR history
   void _navigateToMainScreen(BuildContext context) {
     if (context.mounted) {
-      Navigator.of(context).pushReplacement(
+      // pushAndRemoveUntil deletes the 'Back' history
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const MainScreen()),
+            (route) => false,
       );
     }
   }
 
-  // Handles Google Sign-In and then immediately prompts for Drive import
   Future<void> _handleGoogleSignInAndImport(BuildContext context, WidgetRef ref) async {
-    LoadingOverlay.show(context); // Show loading spinner
+    // 1. Show Loading while signing in
+    LoadingOverlay.show(context);
 
     try {
       final cloudSync = ref.read(cloudSyncServiceProvider);
       final account = await cloudSync.signInWithGoogle(context);
 
-      if (account != null) {
-        // User signed in. Now, prompt to import from Drive.
-        if (context.mounted) {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (dialogCtx) => AlertDialog(
-              title: const Text('Import from Google Drive?'),
-              content: const Text(
-                  'Would you like to download your GameLog backup from Google Drive now? This will replace your current local data.'
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogCtx).pop(); // Dismiss dialog
-                    _navigateToMainScreen(context); // Go to main screen without import
-                  },
-                  child: const Text('No, Start Fresh'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    Navigator.of(dialogCtx).pop(); // Dismiss dialog
-                    LoadingOverlay.show(context); // Show loading again for download
-                    await cloudSync.downloadBackupFromDrive(context);
-                    LoadingOverlay.hide();
-                    _navigateToMainScreen(context); // Go to main screen after import
-                  },
-                  child: const Text('Yes, Import Data'),
-                ),
-              ],
+      // 2. IMPORTANT: Hide Loading IMMEDIATELY after sign-in attempt
+      LoadingOverlay.hide();
+
+      if (account != null && context.mounted) {
+        // Show a small message so the user knows what's happening during the wait
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign-in successful. Checking for backups...')),
+        );
+
+        // 3. The 10-Second Delay (As requested)
+        await Future.delayed(const Duration(seconds: 10));
+
+        if (!context.mounted) return;
+
+        // 4. Now Show the Dialog (Screen is clear)
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogCtx) => AlertDialog(
+            title: const Text('Import from Google Drive?'),
+            content: const Text(
+                'Would you like to download your GameLog backup from Google Drive now? This will replace your current local data.'
             ),
-          );
-        }
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogCtx).pop();
+                  _navigateToMainScreen(context);
+                },
+                child: const Text('No, Start Fresh'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.of(dialogCtx).pop(); // Close dialog first
+
+                  // Show loading again strictly for the download part
+                  LoadingOverlay.show(context);
+                  await cloudSync.downloadBackupFromDrive(context);
+                  LoadingOverlay.hide();
+
+                  if (context.mounted) {
+                    _navigateToMainScreen(context);
+                  }
+                },
+                child: const Text('Yes, Import Data'),
+              ),
+            ],
+          ),
+        );
       }
-    } finally {
-      LoadingOverlay.hide(); // Hide loading spinner in case of error or cancellation
+    } catch (e) {
+      // Safety net: ensure loading is hidden if anything crashes
+      LoadingOverlay.hide();
+      debugPrint("Auth Error: $e");
     }
   }
 
@@ -73,7 +92,6 @@ class AuthScreen extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // App Logo or Icon
               Icon(
                 Icons.gamepad_outlined,
                 size: 100,
@@ -94,28 +112,20 @@ class AuthScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 48),
 
-              // Google Sign-In Button
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: OutlinedButton.icon(
                   icon: Image.asset(
-                    'assets/images/google_logo.png', // Add a Google logo asset
+                    'assets/images/google_logo.png',
                     height: 24,
                   ),
                   label: const Text('Sign in with Google'),
                   onPressed: () => _handleGoogleSignInAndImport(context, ref),
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    side: BorderSide(color: Theme.of(context).colorScheme.onSurface, width: 0.5),
-                  ),
                 ),
               ),
               const SizedBox(height: 24),
 
-              // Continue as Guest Button
               SizedBox(
                 width: double.infinity,
                 height: 50,

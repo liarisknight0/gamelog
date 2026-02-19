@@ -16,7 +16,7 @@ class GoogleAuthHttpClient extends http.BaseClient {
   final Map<String, String> _headers;
   final http.Client _inner = http.Client();
 
-  GoogleAuthHttpClient(this._headers); // Added const constructor where applicable
+  GoogleAuthHttpClient(this._headers);
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
@@ -28,7 +28,7 @@ class GoogleAuthHttpClient extends http.BaseClient {
 /// GoogleSignIn provider
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
   return GoogleSignIn(
-    scopes: const [drive.DriveApi.driveAppdataScope], // Use const
+    scopes: const [drive.DriveApi.driveAppdataScope],
   );
 });
 
@@ -39,12 +39,12 @@ StateProvider<GoogleSignInAccount?>((ref) => null);
 class CloudSyncService {
   final Ref _ref;
 
-  const CloudSyncService(this._ref); // Added const constructor
+  const CloudSyncService(this._ref);
 
   /// Returns an authenticated HTTP client for Google APIs
-  Future<http.Client?> _getAuthenticatedHttpClient(
-      BuildContext context) async {
-    final GoogleSignInAccount? account = _ref.read(googleSignInAccountProvider);
+  Future<http.Client?> _getAuthenticatedHttpClient(BuildContext context) async {
+    final GoogleSignInAccount? account =
+    _ref.read(googleSignInAccountProvider);
 
     if (account == null) {
       if (context.mounted) {
@@ -57,25 +57,18 @@ class CloudSyncService {
 
     try {
       final authHeaders = await account.authHeaders;
-      if (authHeaders == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to get Google authentication headers.')),
-          );
-        }
-        return null;
-      }
       return GoogleAuthHttpClient(authHeaders);
     } catch (e) {
       debugPrint('Failed to obtain auth headers: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to get Google authentication headers: $e')), // Include error in message
+          const SnackBar(content: Text('Failed to get Google authentication headers')),
         );
       }
       return null;
     }
   }
+
 
   /// Interactive Google sign-in
   Future<GoogleSignInAccount?> signInWithGoogle(
@@ -177,7 +170,7 @@ class CloudSyncService {
         await driveApi.files.create(
           drive.File()
             ..name = fileName
-            ..parents = const ['appDataFolder'], // Use const for list
+            ..parents = const ['appDataFolder'],
           uploadMedia: drive.Media(
             Stream.value(jsonBytes),
             jsonBytes.length,
@@ -280,7 +273,6 @@ class CloudSyncService {
   }
 }
 
-/// Provider for CloudSyncService
 final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
   return CloudSyncService(ref);
 });
