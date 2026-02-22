@@ -47,9 +47,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
         <meta-data
             android:name="com.google.android.gms.signin.client_id"
-            android:value="791264357087-qs428ufb3r9p9q306u3locai6d1hp4b1.apps.googleusercontent.com" />
+            android:value="7791264357087-k47i7pnsplndqjiahlbtss1j283l7erp.apps.googleusercontent.com" />
 
 
 
