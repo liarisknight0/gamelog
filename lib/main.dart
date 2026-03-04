@@ -1,4 +1,4 @@
-import 'package:firebase_core/firebase_core.dart'; // <--- NEW: Required for Firebase
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,23 +7,20 @@ import 'package:gamelog/providers/theme_provider.dart';
 import 'package:gamelog/screens/auth_screen.dart';
 import 'package:gamelog/screens/main_screen.dart';
 import 'package:gamelog/screens/onboarding_screen.dart';
-import 'package:gamelog/services/cloud_sync_service.dart';
+import 'package:gamelog/services/firebase_sync_service.dart'; // <--- NEW SERVICE
 import 'package:gamelog/themes/app_themes.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Global flag for onboarding status
 late final bool hasSeenOnboarding;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // --- 1. Initialize Firebase ---
-  // This connects your app to the google-services.json file
   await Firebase.initializeApp();
 
   // --- 2. System UI Configuration ---
-  // Makes status bar and nav bar transparent for edge-to-edge design
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     systemNavigationBarColor: Colors.transparent,
@@ -56,30 +53,40 @@ class _GameLogAppState extends ConsumerState<GameLogApp> {
   @override
   void initState() {
     super.initState();
-    // Attempt to silently sign in the user in the background
-    _checkSignInStatus();
+    _initSync();
   }
 
-  Future<void> _checkSignInStatus() async {
-    // This updates the googleSignInAccountProvider state if a user is found
-    await ref.read(cloudSyncServiceProvider).signInSilently();
+  Future<void> _initSync() async {
+    // Check if user is already signed in to Firebase
+    // If yes, turn on the listener to pull down cloud changes
+    final syncService = ref.read(firebaseSyncServiceProvider);
+
+    if (syncService.currentUser != null) {
+      syncService.startListeningToCloud();
+    }
+
+    // Also listen for future login/logout events to start/stop sync
+    syncService.authStateChanges.listen((user) {
+      if (user != null) {
+        syncService.startListeningToCloud();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeNotifierProvider);
-    final googleAccount = ref.watch(googleSignInAccountProvider);
+    final firebaseUser = ref.watch(firebaseSyncServiceProvider).currentUser;
 
     // --- ROUTING LOGIC ---
     Widget initialScreen;
     if (!hasSeenOnboarding) {
-      // 1. First time user -> Onboarding
       initialScreen = const OnboardingScreen();
-    } else if (googleAccount != null) {
-      // 2. Returning user, signed in -> Main App
+    } else if (firebaseUser != null) {
+      // Logged in via Firebase -> Main App
       initialScreen = const MainScreen();
     } else {
-      // 3. Returning user, NOT signed in -> Login/Guest Screen
+      // Returning user, not logged in -> Auth Screen
       initialScreen = const AuthScreen();
     }
 

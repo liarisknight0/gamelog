@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/providers/sync_status_provider.dart';
-import 'package:gamelog/services/cloud_sync_service.dart';
+import 'package:gamelog/services/firebase_sync_service.dart'; // <--- UPDATED
 
 class SyncIndicator extends ConsumerWidget {
   const SyncIndicator({super.key});
@@ -10,7 +10,6 @@ class SyncIndicator extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(syncStatusNotifierProvider);
 
-    // If not signed in (hidden), show nothing
     if (status == SyncState.hidden) {
       return const SizedBox.shrink();
     }
@@ -44,12 +43,6 @@ class SyncIndicator extends ConsumerWidget {
     Widget iconWidget = Icon(icon, color: color);
 
     if (isSpinning) {
-      iconWidget = RotationTransition(
-        turns: const AlwaysStoppedAnimation(0.5), // Simple static rotation or use animation controller
-        child: iconWidget,
-      );
-      // For a real spin, we'd need a StatefulWidget, but for now a static icon is safer
-      // Let's just use a CircularProgressIndicator for the syncing state to be fancy
       iconWidget = SizedBox(
           width: 18,
           height: 18,
@@ -62,8 +55,8 @@ class SyncIndicator extends ConsumerWidget {
       tooltip: tooltip,
       onPressed: () {
         if (status == SyncState.unsynced) {
-          // Retry sync
-          ref.read(cloudSyncServiceProvider).autoSync();
+          // Retry logic: Trigger migration/sync again
+          ref.read(firebaseSyncServiceProvider).migrateAndSyncLocalData();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Retrying Sync...')),
           );

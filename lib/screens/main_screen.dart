@@ -1,5 +1,4 @@
-import 'dart:ui'; // <--- NEW IMPORT for ImageFilter
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/models/game.dart';
@@ -12,16 +11,12 @@ import 'package:gamelog/screens/home_screen.dart';
 import 'package:gamelog/screens/profile_screen.dart';
 import 'package:gamelog/screens/support_screen.dart';
 import 'package:gamelog/services/backup_service.dart';
-import 'package:gamelog/services/cloud_sync_service.dart';
-import 'package:gamelog/widgets/loading_overlay.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final mainScreenIndexProvider = StateProvider<int>((ref) => 2);
 
 class MainScreen extends ConsumerStatefulWidget {
-  final bool checkDriveBackup;
-
-  const MainScreen({super.key, this.checkDriveBackup = false});
+  const MainScreen({super.key});
 
   @override
   ConsumerState<MainScreen> createState() => _MainScreenState();
@@ -33,42 +28,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleAppStartupLogic();
-      if (widget.checkDriveBackup) {
-        _scheduleDriveBackupCheck();
-      }
     });
-  }
-
-  Future<void> _scheduleDriveBackupCheck() async {
-    await Future.delayed(const Duration(seconds: 10));
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Import from Google Drive?'),
-        content: const Text(
-            'We noticed you just signed in. Would you like to download your backup from Google Drive? This will replace your current local data.'
-        ),
-        actions:[
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('No, Keep Fresh'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.of(dialogCtx).pop();
-              LoadingOverlay.show(context);
-              await ref.read(cloudSyncServiceProvider).downloadBackupFromDrive(context);
-              ref.read(gameListProvider.notifier).refresh();
-              LoadingOverlay.hide();
-            },
-            child: const Text('Yes, Import Data'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _handleAppStartupLogic() async {
@@ -95,7 +55,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Don\'t Lose Your Games!'),
-        content: const Text("Don't forget to export a backup of your collection!"),
+        content: const Text("Don't forget to export a manual backup of your collection!"),
         actions:[
           TextButton(child: const Text('Later'), onPressed: () => Navigator.of(ctx).pop()),
           FilledButton(
@@ -136,17 +96,17 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent, // Required for Blur
-      barrierColor: Colors.black.withValues(alpha: 0.3), // Darken background behind blur
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (ctx) {
         return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), // The Blur Effect
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: SafeArea(
             child: Container(
-              margin: const EdgeInsets.all(16), // Floating look
+              margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8), // Semi-transparent card
+                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),

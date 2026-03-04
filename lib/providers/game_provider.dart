@@ -1,26 +1,24 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/models/game.dart';
+import 'package:gamelog/services/firebase_sync_service.dart'; // <--- Using Firebase now
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gamelog/services/cloud_sync_service.dart';
 
 // Mandatory for code generation
 part 'game_provider.g.dart';
 
 /// 1. THE SORTING STATE
-/// Defines how we want to organize our lists.
 enum GameSortOption { alphabetical, dateAdded, rating }
 
 @Riverpod(keepAlive: true)
 class GameSort extends _$GameSort {
   @override
-  GameSortOption build() => GameSortOption.dateAdded; // Default sort
+  GameSortOption build() => GameSortOption.dateAdded;
 
   void setSort(GameSortOption option) => state = option;
 }
 
 /// 2. THE MASTER LIST
-/// Manages the raw data coming directly from Hive.
 @Riverpod(keepAlive: true)
 class GameList extends _$GameList {
   late Box<Game> _box;
@@ -32,39 +30,37 @@ class GameList extends _$GameList {
   }
 
   /// Refreshes the state from the database.
-  /// Call this after manual Hive operations or imports.
   void refresh() {
     state = _box.values.toList();
-  }
-
-  // --- TRIGGER AUTO SYNC HERE ---
-  void _triggerSync() {
-    // We read the service and call autoSync.
-    // It's fire-and-forget (we don't await it here so UI doesn't freeze).
-    ref.read(cloudSyncServiceProvider).autoSync();
   }
 
   void addGame(Game game) {
     _box.add(game);
     refresh();
-    _triggerSync(); // <--- Add this
+    // PUSH TO FIREBASE
+    ref.read(firebaseSyncServiceProvider).saveGameToCloud(game);
   }
 
   void deleteGame(Game game) {
+    final String idToDelete = game.id; // Capture ID before delete
     game.delete();
     refresh();
-    _triggerSync(); // <--- Add this
+    // DELETE FROM FIREBASE
+    if (idToDelete.isNotEmpty) {
+      ref.read(firebaseSyncServiceProvider).deleteGameFromCloud(idToDelete);
+    }
   }
 
   void updateGameStatus(Game game, GameStatus newStatus) {
     game.status = newStatus;
     game.save();
     refresh();
-    _triggerSync(); // <--- Add this
+    // PUSH UPDATE TO FIREBASE
+    ref.read(firebaseSyncServiceProvider).saveGameToCloud(game);
   }
 }
+
 /// 3. HELPER FOR SORTING
-/// A private utility to sort lists based on user preference.
 List<Game> _applySort(List<Game> list, GameSortOption option) {
   final sortedList = List<Game>.from(list);
   switch (option) {
@@ -72,11 +68,9 @@ List<Game> _applySort(List<Game> list, GameSortOption option) {
       sortedList.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
       break;
     case GameSortOption.rating:
-    // Sort by rating descending (highest first)
       sortedList.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
       break;
     case GameSortOption.dateAdded:
-    // Sort by date added descending (newest first)
       sortedList.sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
       break;
   }
@@ -84,25 +78,20 @@ List<Game> _applySort(List<Game> list, GameSortOption option) {
 }
 
 /// 4. FILTERED & SORTED PROVIDERS
-/// These are what the UI screens (Collection, Backlog, etc.) actually use.
 
 @riverpod
 List<Game> collection(Ref ref) {
   final allGames = ref.watch(gameListProvider);
   final sortOption = ref.watch(gameSortProvider);
-
-  List<Game> filtered = allGames;
-
-  return _applySort(filtered, sortOption);
+  // Collection shows ALL games now (Master List)
+  return _applySort(allGames, sortOption);
 }
 
 @riverpod
 List<Game> nowPlaying(Ref ref) {
   final allGames = ref.watch(gameListProvider);
   final sortOption = ref.watch(gameSortProvider);
-
   final filtered = allGames.where((game) => game.status == GameStatus.nowPlaying).toList();
-
   return _applySort(filtered, sortOption);
 }
 
@@ -110,12 +99,10 @@ List<Game> nowPlaying(Ref ref) {
 List<Game> archive(Ref ref) {
   final allGames = ref.watch(gameListProvider);
   final sortOption = ref.watch(gameSortProvider);
-
   final filtered = allGames.where((game) =>
   game.status == GameStatus.beaten ||
       game.status == GameStatus.dropped
   ).toList();
-
   return _applySort(filtered, sortOption);
 }
 
@@ -123,9 +110,7 @@ List<Game> archive(Ref ref) {
 List<Game> backlog(Ref ref) {
   final allGames = ref.watch(gameListProvider);
   final sortOption = ref.watch(gameSortProvider);
-
   final filtered = allGames.where((game) => game.status == GameStatus.backlog).toList();
-
   return _applySort(filtered, sortOption);
 }
 
@@ -135,18 +120,17 @@ List<Game> backlog(Ref ref) {
 class SearchQuery extends _$SearchQuery {
   @override
   String build() => '';
-
   void setQuery(String query) => state = query;
 }
 
 @riverpod
 List<Game> searchResults(Ref ref) {
-  final games = ref.watch(gameListProvider);
+  final allGames = ref.watch(gameListProvider);
   final query = ref.watch(searchQueryProvider).toLowerCase();
 
   if (query.trim().isEmpty) return [];
 
-  return games.where((game) {
+  return allGames.where((game) {
     return game.title.toLowerCase().contains(query);
   }).toList();
 }

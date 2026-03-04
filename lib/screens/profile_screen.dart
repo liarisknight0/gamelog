@@ -11,7 +11,7 @@ import 'package:gamelog/screens/about_screen.dart';
 import 'package:gamelog/screens/app_settings_screen.dart';
 import 'package:gamelog/screens/support_screen.dart';
 import 'package:gamelog/screens/auth_screen.dart';
-import 'package:gamelog/services/cloud_sync_service.dart';
+import 'package:gamelog/services/firebase_sync_service.dart'; // <--- NEW IMPORT
 import 'package:gamelog/widgets/profile_menu_widgets.dart';
 import 'package:gamelog/widgets/loading_overlay.dart';
 
@@ -66,14 +66,13 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 
-  // --- UPGRADE: MINI STATS DASHBOARD ---
   Widget _buildStatsDashboard(BuildContext context, int total, int beaten, int playing) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20), // More rounded corners
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
           ),
@@ -89,9 +88,9 @@ class ProfileScreen extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children:[
           _buildStatColumn(context, Icons.collections_bookmark_rounded, Theme.of(context).colorScheme.primary, total.toString(), 'Total'),
-          Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)), // Divider
+          Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
           _buildStatColumn(context, Icons.emoji_events_rounded, Colors.amber.shade600, beaten.toString(), 'Beaten'),
-          Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)), // Divider
+          Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
           _buildStatColumn(context, Icons.play_circle_filled_rounded, Colors.green.shade500, playing.toString(), 'Playing'),
         ],
       ),
@@ -115,18 +114,20 @@ class ProfileScreen extends ConsumerWidget {
       ],
     );
   }
-  // --- END MINI STATS DASHBOARD ---
 
   Future<void> _performLogout(BuildContext context, WidgetRef ref) async {
-    final googleAccount = ref.read(googleSignInAccountProvider);
-
     LoadingOverlay.show(context);
     try {
-      if (googleAccount != null) {
-        await ref.read(cloudSyncServiceProvider).autoSync();
-        await ref.read(cloudSyncServiceProvider).signOutGoogle();
+      final syncService = ref.read(firebaseSyncServiceProvider);
+
+      // Ensure we push data before logging out if possible
+      // (With Firebase, sync is usually instant, but a final migration check doesn't hurt)
+      if (syncService.currentUser != null) {
+        await syncService.migrateAndSyncLocalData();
+        await syncService.signOut();
       }
 
+      // Clear local Hive database
       await Hive.box<Game>('games').clear();
       ref.read(gameListProvider.notifier).refresh();
 
@@ -151,23 +152,24 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final localUserName = ref.watch(userNameProvider);
     final localProfilePath = ref.watch(profileImageProvider);
-
-    // FETCH STATS
     final allGames = ref.watch(gameListProvider);
     final totalGames = allGames.length;
     final beatenGames = allGames.where((g) => g.status == GameStatus.beaten).length;
     final playingGames = allGames.where((g) => g.status == GameStatus.nowPlaying).length;
 
-    final googleAccount = ref.watch(googleSignInAccountProvider);
-    final isGoogleSignedIn = googleAccount != null;
+    // --- FIREBASE USER CHECK ---
+    // We can access currentUser directly since auth state persists
+    final syncService = ref.watch(firebaseSyncServiceProvider);
+    final firebaseUser = syncService.currentUser;
+    final isGoogleSignedIn = firebaseUser != null;
 
     final displayString = isGoogleSignedIn
-        ? (googleAccount.displayName ?? localUserName)
+        ? (firebaseUser.displayName ?? localUserName)
         : localUserName;
 
     ImageProvider? avatarImage;
-    if (isGoogleSignedIn && googleAccount.photoUrl != null) {
-      avatarImage = NetworkImage(googleAccount.photoUrl!);
+    if (isGoogleSignedIn && firebaseUser.photoURL != null) {
+      avatarImage = NetworkImage(firebaseUser.photoURL!);
     } else if (localProfilePath != null && File(localProfilePath).existsSync()) {
       avatarImage = FileImage(File(localProfilePath));
     }
@@ -228,12 +230,12 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
 
-          if (isGoogleSignedIn)
+          if (isGoogleSignedIn && firebaseUser.email != null)
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: 4.0),
                 child: Text(
-                  googleAccount.email,
+                  firebaseUser.email!,
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ),
@@ -241,7 +243,6 @@ class ProfileScreen extends ConsumerWidget {
 
           const SizedBox(height: 32),
 
-          // --- IMPLEMENTED DASHBOARD ---
           _buildStatsDashboard(context, totalGames, beatenGames, playingGames),
 
           const SizedBox(height: 32),
@@ -252,23 +253,23 @@ class ProfileScreen extends ConsumerWidget {
             ProfileMenuItem(
               icon: Icons.person_add_alt_1_outlined,
               title: 'Sign in with Google',
-              onTap: () => ref.read(cloudSyncServiceProvider).signInWithGoogle(context),
+              onTap: () => ref.read(firebaseSyncServiceProvider).signInWithGoogle(),
             )
-          else ...[
+          else
             ProfileMenuItem(
-              icon: Icons.cloud_upload_outlined,
-              title: 'Force Upload to Drive',
-              onTap: () => ref.read(cloudSyncServiceProvider).uploadBackupToDrive(context),
-            ),
-            ProfileMenuItem(
-              icon: Icons.cloud_download_outlined,
-              title: 'Force Download from Drive',
+              icon: Icons.sync,
+              title: 'Force Resync Library',
               onTap: () async {
-                await ref.read(cloudSyncServiceProvider).downloadBackupFromDrive(context);
-                ref.read(gameListProvider.notifier).refresh();
+                LoadingOverlay.show(context);
+                await ref.read(firebaseSyncServiceProvider).migrateAndSyncLocalData();
+                LoadingOverlay.hide();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Library synced with Cloud.')),
+                  );
+                }
               },
             ),
-          ],
 
           const Divider(indent: 16, endIndent: 16),
 
@@ -326,8 +327,8 @@ class ProfileScreen extends ConsumerWidget {
                   title: const Text('Log Out'),
                   content: Text(
                       isGoogleSignedIn
-                          ? 'Your games will be automatically synced to Google Drive before logging out. This will clear your games from this device.'
-                          : 'You are currently a Guest. Logging out will clear your local library. Make sure you exported a manual backup!'
+                          ? 'Logging out will remove all games from this device. They are safely backed up in your account.'
+                          : 'You are a Guest. Logging out will PERMANENTLY DELETE your local library.'
                   ),
                   actions:[
                     TextButton(
