@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// Define a common color palette based on your inspiration
+// Define a common color palette
 class AppColors {
   static const primaryPurple = Color(0xFF7A6BFE);
   static const lightPurple = Color(0xFFE8E5FF);
@@ -30,12 +30,21 @@ final ThemeData lightTheme = ThemeData(
     backgroundColor: AppColors.primaryPurple,
     foregroundColor: Colors.white,
   ),
-  // --- THIS IS THE CORRECTED LINE ---
   cardTheme: CardThemeData(
     elevation: 0.5,
     color: AppColors.lightSurface,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
   ),
+  // --- MODERN FLOATING SNACKBAR ---
+  snackBarTheme: SnackBarThemeData(
+    behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    elevation: 6,
+    insetPadding: const EdgeInsets.all(16),
+    backgroundColor: AppColors.primaryPurple,
+    contentTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+  ),
+  // ---------------------------------
   colorScheme: const ColorScheme.light().copyWith(
     primary: AppColors.primaryPurple,
     secondary: AppColors.lightPurple,
@@ -44,8 +53,7 @@ final ThemeData lightTheme = ThemeData(
   ),
 );
 
-
-// THEME DATA FOR THE DARK MODE (our existing theme, now formalized)
+// THEME DATA FOR THE DARK MODE
 final ThemeData darkTheme = ThemeData(
   brightness: Brightness.dark,
   scaffoldBackgroundColor: AppColors.darkBackground,
@@ -62,11 +70,20 @@ final ThemeData darkTheme = ThemeData(
     backgroundColor: AppColors.primaryPurple,
     foregroundColor: Colors.white,
   ),
-  // --- THIS IS THE SECOND CORRECTED LINE ---
   cardTheme: CardThemeData(
     color: AppColors.darkSurface,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
   ),
+  // --- MODERN FLOATING SNACKBAR ---
+  snackBarTheme: SnackBarThemeData(
+    behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    elevation: 6,
+    insetPadding: const EdgeInsets.all(16),
+    backgroundColor: AppColors.primaryPurple,
+    contentTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+  ),
+  // ---------------------------------
   colorScheme: const ColorScheme.dark().copyWith(
     primary: AppColors.primaryPurple,
     secondary: AppColors.lightPurple,

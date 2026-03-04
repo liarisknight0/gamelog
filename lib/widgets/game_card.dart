@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:gamelog/models/game.dart';
 import 'package:gamelog/screens/add_edit_game_screen.dart';
+import 'package:gamelog/screens/game_detail_screen.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart'; // For formatting the date
 
 class GameCard extends StatelessWidget {
@@ -18,8 +20,13 @@ class GameCard extends StatelessWidget {
       shadowColor: Colors.black.withValues(alpha:0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: InkWell(
-        // The new "tap" navigation is more intuitive than long-press
         onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (ctx) => GameDetailScreen(game: game)),
+          );
+        },
+        onLongPress: () {
+          HapticFeedback.heavyImpact();
           Navigator.of(context).push(
             MaterialPageRoute(builder: (ctx) => AddEditGameScreen(game: game)),
           );

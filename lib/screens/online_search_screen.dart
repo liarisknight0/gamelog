@@ -5,33 +5,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/services/igdb_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shimmer/shimmer.dart';
 
 part 'online_search_screen.g.dart';
 
-// --- STATE MANAGEMENT ---
-
-// This provider will hold the results of our API search.
-// It's an AsyncNotifier because fetching data is an asynchronous operation.
 @riverpod
 class ApiSearch extends _$ApiSearch {
   @override
   FutureOr<List<ApiGame>> build() {
-    // Initially, there are no results.
-    return [];
+    return[];
   }
 
-  // This method will be called to trigger a search.
   Future<void> searchGames(String query) async {
-    // Set the state to loading
     state = const AsyncValue.loading();
-    // Fetch the games and update the state with the result or an error.
     state = await AsyncValue.guard(() {
       return IGDBService().searchGames(query);
     });
   }
 }
-
-// --- UI ---
 
 class OnlineSearchScreen extends ConsumerStatefulWidget {
   const OnlineSearchScreen({super.key});
@@ -41,8 +32,6 @@ class OnlineSearchScreen extends ConsumerStatefulWidget {
 }
 
 class _OnlineSearchScreenState extends ConsumerState<OnlineSearchScreen> {
-  // A "debouncer" is used to prevent firing off an API search on every single keystroke.
-  // It waits until the user has stopped typing for a moment.
   Timer? _debouncer;
 
   @override
@@ -54,7 +43,6 @@ class _OnlineSearchScreenState extends ConsumerState<OnlineSearchScreen> {
   void _onSearchChanged(String query) {
     if (_debouncer?.isActive ?? false) _debouncer?.cancel();
     _debouncer = Timer(const Duration(milliseconds: 500), () {
-      // After 500ms of no typing, trigger the search.
       ref.read(apiSearchProvider.notifier).searchGames(query);
     });
   }
@@ -75,7 +63,6 @@ class _OnlineSearchScreenState extends ConsumerState<OnlineSearchScreen> {
         ),
       ),
       body: searchResults.when(
-        // --- DATA STATE ---
         data: (games) {
           if (games.isEmpty) {
             return const Center(child: Text('Start typing to search for games.'));
@@ -83,21 +70,45 @@ class _OnlineSearchScreenState extends ConsumerState<OnlineSearchScreen> {
           return ListView.builder(
             itemCount: games.length,
             itemBuilder: (context, index) {
-              final game = games[index];
-              return SearchResultTile(game: game);
+              return SearchResultTile(game: games[index]);
             },
           );
         },
-        // --- LOADING STATE ---
-        loading: () => const Center(child: CircularProgressIndicator()),
-        // --- ERROR STATE ---
+        // --- PREMIUM SHIMMER LOADER ---
+        loading: () => ListView.builder(
+          itemCount: 8, // Show 8 skeleton items
+          itemBuilder: (context, index) => Shimmer.fromColors(
+            baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            highlightColor: Theme.of(context).colorScheme.surface,
+            child: ListTile(
+              leading: Container(
+                width: 50,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4.0),
+                ),
+              ),
+              title: Container(
+                  height: 14,
+                  color: Colors.white,
+                  margin: const EdgeInsets.only(right: 50)
+              ),
+              subtitle: Container(
+                  height: 10,
+                  color: Colors.white,
+                  margin: const EdgeInsets.only(right: 150, top: 8)
+              ),
+            ),
+          ),
+        ),
+        // ----------------------------------------
         error: (err, stack) => Center(child: Text('An error occurred: $err')),
       ),
     );
   }
 }
 
-// A dedicated widget for a single search result item.
 class SearchResultTile extends StatelessWidget {
   const SearchResultTile({super.key, required this.game});
 
@@ -108,21 +119,20 @@ class SearchResultTile extends StatelessWidget {
     return ListTile(
       leading: SizedBox(
         width: 50,
+        height: double.infinity,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(4.0),
           child: CachedNetworkImage(
             imageUrl: game.coverUrl,
             fit: BoxFit.cover,
-            // A simple placeholder while the image loads
             placeholder: (context, url) => Container(color: Colors.grey.shade800),
-            errorWidget: (context, url, error) => const Icon(Icons.error),
+            errorWidget: (context, url, error) => const Icon(Icons.videogame_asset),
           ),
         ),
       ),
-      title: Text(game.title),
-      subtitle: Text(game.platforms, maxLines: 1),
+      title: Text(game.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(game.platforms, maxLines: 1, overflow: TextOverflow.ellipsis),
       onTap: () {
-        // When tapped, pop the screen and return the selected game data.
         Navigator.of(context).pop(game);
       },
     );
