@@ -1,0 +1,17 @@
+[33mcommit 9793b181a4fd2c7dcea462fde4e94db58f1d4660[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdevelop-v4[m[33m, [m[1;31morigin/develop-v4[m[33m)[m
+Author: Harshit <www.harshitrajput2003@gmail.com>
+Date:   Sun Feb 22 11:58:00 2026 +0530
+
+    bumped the version code
+
+[33mcommit 8a9c17602df6df79f37e746755dc7262cc4b6d5c[m
+Author: Harshit <www.harshitrajput2003@gmail.com>
+Date:   Sun Feb 22 11:55:12 2026 +0530
+
+    build: bump version to 1.1.1+4 and generate release bundle with fixed Google Auth
+
+[33mcommit 4cb67842d3852c48ae128022b58cd3ae30b576bd[m
+Author: Harshit <www.harshitrajput2003@gmail.com>
+Date:   Thu Feb 19 23:34:17 2026 +0530
+
+    chore: bump version to 1.1.0+3 for Cloud Sync release

@@ -1,19 +1,24 @@
-import 'dart:io'; // Required for FileImage
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart'; // Required for ImagePicker
+import 'package:image_picker/image_picker.dart';
+import 'package:hive/hive.dart'; // Needed to clear data on logout
+
+import 'package:gamelog/models/game.dart';
 import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/providers/user_settings_provider.dart';
 import 'package:gamelog/screens/about_screen.dart';
 import 'package:gamelog/screens/app_settings_screen.dart';
 import 'package:gamelog/screens/support_screen.dart';
-import 'package:gamelog/services/cloud_sync_service.dart'; // <--- IMPORTANT: New import for Cloud Sync
+import 'package:gamelog/screens/auth_screen.dart'; // Needed for logout navigation
+import 'package:gamelog/services/cloud_sync_service.dart';
 import 'package:gamelog/widgets/profile_menu_widgets.dart';
+import 'package:gamelog/widgets/loading_overlay.dart'; // Needed for logout spinner
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-  /// Opens a dialog to change the user's display name.
+  /// Opens a dialog to change the user's local display name.
   void _showChangeNameDialog(BuildContext context, WidgetRef ref) {
     final currentName = ref.read(userNameProvider);
     final nameController = TextEditingController(text: currentName);
@@ -30,7 +35,7 @@ class ProfileScreen extends ConsumerWidget {
             hintText: 'Enter your name...',
           ),
         ),
-        actions: [
+        actions:[
           TextButton(
             child: const Text('Cancel'),
             onPressed: () => Navigator.of(ctx).pop(),
@@ -50,22 +55,16 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  /// Opens the gallery to pick a new profile picture.
+  /// Opens the gallery to pick a new local profile picture.
   Future<void> _pickProfileImage(WidgetRef ref, BuildContext context) async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 80, // Compress slightly to save space
+      imageQuality: 80,
     );
 
     if (image != null) {
       ref.read(profileImageProvider.notifier).updateImage(image.path);
-    } else {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image selection cancelled.')),
-        );
-      }
     }
   }
 
@@ -83,7 +82,7 @@ class ProfileScreen extends ConsumerWidget {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+        children:[
           Icon(Icons.collections_bookmark,
               color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 12),
@@ -96,12 +95,65 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  /// Master Logout Logic
+  Future<void> _performLogout(BuildContext context, WidgetRef ref) async {
+    final googleAccount = ref.read(googleSignInAccountProvider);
+
+    LoadingOverlay.show(context);
+    try {
+      if (googleAccount != null) {
+        // 1. Auto-Sync to Drive before logging out to ensure safety
+        await ref.read(cloudSyncServiceProvider).autoSync();
+        // 2. Sign out of Google
+        await ref.read(cloudSyncServiceProvider).signOutGoogle();
+      }
+
+      // 3. Clear local Hive database so the next user starts fresh
+      await Hive.box<Game>('games').clear();
+      ref.read(gameListProvider.notifier).refresh();
+
+      // 4. Navigate back to Auth Screen
+      LoadingOverlay.hide();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthScreen()),
+              (route) => false,
+        );
+      }
+    } catch (e) {
+      LoadingOverlay.hide();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during logout: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userName = ref.watch(userNameProvider);
-    final profilePath = ref.watch(profileImageProvider);
+    // Local Data
+    final localUserName = ref.watch(userNameProvider);
+    final localProfilePath = ref.watch(profileImageProvider);
     final totalGames = ref.watch(gameListProvider).length;
-    final googleAccount = ref.watch(googleSignInAccountProvider); // <--- Watch Google Account
+
+    // Google Data
+    final googleAccount = ref.watch(googleSignInAccountProvider);
+    final isGoogleSignedIn = googleAccount != null;
+
+    // --- DYNAMIC OVERRIDES ---
+    // If signed in, use Google name. Otherwise, use local name.
+    final displayString = isGoogleSignedIn
+        ? (googleAccount.displayName ?? localUserName)
+        : localUserName;
+
+    // Determine the Avatar Image
+    ImageProvider? avatarImage;
+    if (isGoogleSignedIn && googleAccount.photoUrl != null) {
+      avatarImage = NetworkImage(googleAccount.photoUrl!);
+    } else if (localProfilePath != null && File(localProfilePath).existsSync()) {
+      avatarImage = FileImage(File(localProfilePath));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -109,40 +161,43 @@ class ProfileScreen extends ConsumerWidget {
         centerTitle: true,
       ),
       body: ListView(
-        children: [
+        children:[
           const SizedBox(height: 30),
 
           // --- PROFILE PICTURE SECTION ---
           Center(
             child: GestureDetector(
-              onTap: () => _pickProfileImage(ref, context), // Pass context
+              // Disable local image picker if using Google Account photo
+              onTap: isGoogleSignedIn
+                  ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Using Google Profile Picture')))
+                  : () => _pickProfileImage(ref, context),
               child: Stack(
-                children: [
+                children:[
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    backgroundImage: profilePath != null && File(profilePath).existsSync() // Check if file exists
-                        ? FileImage(File(profilePath))
-                        : null,
-                    child: profilePath == null || !File(profilePath).existsSync()
+                    backgroundImage: avatarImage,
+                    child: avatarImage == null
                         ? Icon(Icons.person,
                         size: 60,
                         color: Theme.of(context).colorScheme.primary)
                         : null,
                   ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 3),
+                  if (!isGoogleSignedIn) // Only show camera icon for guests
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: Theme.of(context).scaffoldBackgroundColor, width: 3),
+                        ),
+                        child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
                       ),
-                      child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -153,10 +208,23 @@ class ProfileScreen extends ConsumerWidget {
           // --- USER NAME ---
           Center(
             child: Text(
-              userName,
+              displayString,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
           ),
+
+          // Display email under name if signed in
+          if (isGoogleSignedIn)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  googleAccount.email,
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ),
+            ),
 
           const SizedBox(height: 24),
 
@@ -166,55 +234,33 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           const Divider(indent: 16, endIndent: 16),
 
-          // --- NEW: Google Sync Section ---
+          // --- CLOUD SYNC SECTION ---
           const SectionTitle(title: 'Cloud Sync'),
-          googleAccount == null
-              ? ProfileMenuItem(
-            icon: Icons.person_add_alt_1_outlined,
-            title: 'Sign in with Google',
-            onTap: () => ref.read(cloudSyncServiceProvider).signInWithGoogle(context),
-          )
-              : Column(
-            children: [
-              ListTile(
-                leading: CircleAvatar(
-                  radius: 16,
-                  backgroundImage: googleAccount.photoUrl != null
-                      ? NetworkImage(googleAccount.photoUrl!)
-                      : null, // Placeholder if no photoUrl
-                  backgroundColor: Colors.grey.withValues(alpha:0.3),
-                  child: googleAccount.photoUrl == null
-                      ? const Icon(Icons.person, size: 16, color: Colors.white)
-                      : null,
-                ),
-                title: Text(googleAccount.displayName ?? 'Google User'),
-                subtitle: Text(googleAccount.email),
-              ),
-              ProfileMenuItem(
-                icon: Icons.cloud_upload_outlined,
-                title: 'Upload to Drive Now',
-                onTap: () => ref.read(cloudSyncServiceProvider).uploadBackupToDrive(context),
-              ),
-              ProfileMenuItem(
-                icon: Icons.cloud_download_outlined,
-                title: 'Download from Drive Now',
-                // When downloading, we should refresh the main game list
-                onTap: () async {
-                  await ref.read(cloudSyncServiceProvider).downloadBackupFromDrive(context);
-                  ref.read(gameListProvider.notifier).refresh(); // Important to refresh UI after download
-                },
-              ),
-              ProfileMenuItem(
-                icon: Icons.logout,
-                title: 'Sign out of Google',
-                textColor: Colors.orange,
-                onTap: () => ref.read(cloudSyncServiceProvider).signOutGoogle(),
-              ),
-            ],
-          ),
-          const Divider(indent: 16, endIndent: 16),
-          // --- END NEW Google Sync Section ---
+          if (!isGoogleSignedIn)
+            ProfileMenuItem(
+              icon: Icons.person_add_alt_1_outlined,
+              title: 'Sign in with Google',
+              onTap: () => ref.read(cloudSyncServiceProvider).signInWithGoogle(context),
+            )
+          else ...[
+            ProfileMenuItem(
+              icon: Icons.cloud_upload_outlined,
+              title: 'Force Upload to Drive',
+              onTap: () => ref.read(cloudSyncServiceProvider).uploadBackupToDrive(context),
+            ),
+            ProfileMenuItem(
+              icon: Icons.cloud_download_outlined,
+              title: 'Force Download from Drive',
+              onTap: () async {
+                await ref.read(cloudSyncServiceProvider).downloadBackupFromDrive(context);
+                ref.read(gameListProvider.notifier).refresh();
+              },
+            ),
+          ],
 
+          const Divider(indent: 16, endIndent: 16),
+
+          // --- SETTINGS SECTION ---
           const SectionTitle(title: 'Settings'),
           ProfileMenuItem(
             icon: Icons.settings_outlined,
@@ -226,12 +272,15 @@ class ProfileScreen extends ConsumerWidget {
             },
           ),
 
-          const SectionTitle(title: 'Account'),
-          ProfileMenuItem(
-            icon: Icons.badge_outlined,
-            title: 'Change account name',
-            onTap: () => _showChangeNameDialog(context, ref),
-          ),
+          // Only show local name changer if NOT signed into Google
+          if (!isGoogleSignedIn) ...[
+            const SectionTitle(title: 'Account'),
+            ProfileMenuItem(
+              icon: Icons.badge_outlined,
+              title: 'Change account name',
+              onTap: () => _showChangeNameDialog(context, ref),
+            ),
+          ],
 
           const SectionTitle(title: 'GameLog'),
           ProfileMenuItem(
@@ -256,28 +305,33 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           const Divider(indent: 16, endIndent: 16),
 
+          // --- MASTER LOGOUT ---
           ProfileMenuItem(
             icon: Icons.logout,
-            title: 'Log out',
+            title: isGoogleSignedIn ? 'Save & Log out' : 'Log out (Guest)',
             textColor: Colors.red,
             onTap: () {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('Log Out'),
-                  content: const Text('Are you sure you want to log out of GameLog?'),
-                  actions: [
+                  content: Text(
+                      isGoogleSignedIn
+                          ? 'Your games will be automatically synced to Google Drive before logging out. This will clear your games from this device.'
+                          : 'You are currently a Guest. Logging out will clear your local library. Make sure you exported a manual backup!'
+                  ),
+                  actions:[
                     TextButton(
-                        child: const Text('Cancel'),
-                        onPressed: () => Navigator.of(ctx).pop()
+                      child: const Text('Cancel'),
+                      onPressed: () => Navigator.of(ctx).pop(),
                     ),
-                    TextButton(
-                        child: const Text('Log Out', style: TextStyle(color: Colors.red)),
-                        onPressed: () {
-                          // TODO: Implement actual app-level logout logic here (e.g., clear all user data, navigate to login)
-                          Navigator.of(ctx).pop(); // Close dialog
-                          // Consider navigating to a login/onboarding screen or clearing all app state
-                        }
+                    FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () {
+                        Navigator.of(ctx).pop(); // Close Dialog
+                        _performLogout(context, ref); // Execute Master Logout
+                      },
+                      child: const Text('Log Out'),
                     ),
                   ],
                 ),
