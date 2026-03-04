@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "421278333318",
+    "project_id": "liaris-gamelog",
+    "storage_bucket": "liaris-gamelog.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:421278333318:android:04ad8770626331313ed407",
+        "android_client_info": {
+          "package_name": "com.liarisknight.gamelog"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAc2mLoUr1zDX6mcPdN3IWBCGv5GpobqDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

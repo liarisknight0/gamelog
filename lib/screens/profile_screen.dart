@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:hive/hive.dart'; // Needed to clear data on logout
+import 'package:hive/hive.dart';
 
 import 'package:gamelog/models/game.dart';
 import 'package:gamelog/providers/game_provider.dart';
@@ -10,15 +10,14 @@ import 'package:gamelog/providers/user_settings_provider.dart';
 import 'package:gamelog/screens/about_screen.dart';
 import 'package:gamelog/screens/app_settings_screen.dart';
 import 'package:gamelog/screens/support_screen.dart';
-import 'package:gamelog/screens/auth_screen.dart'; // Needed for logout navigation
+import 'package:gamelog/screens/auth_screen.dart';
 import 'package:gamelog/services/cloud_sync_service.dart';
 import 'package:gamelog/widgets/profile_menu_widgets.dart';
-import 'package:gamelog/widgets/loading_overlay.dart'; // Needed for logout spinner
+import 'package:gamelog/widgets/loading_overlay.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-  /// Opens a dialog to change the user's local display name.
   void _showChangeNameDialog(BuildContext context, WidgetRef ref) {
     final currentName = ref.read(userNameProvider);
     final nameController = TextEditingController(text: currentName);
@@ -55,7 +54,6 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  /// Opens the gallery to pick a new local profile picture.
   Future<void> _pickProfileImage(WidgetRef ref, BuildContext context) async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
@@ -68,51 +66,70 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 
-  /// Builds the stat box for total games.
-  Widget _buildTotalGamesStat(int count, BuildContext context) {
+  // --- UPGRADE: MINI STATS DASHBOARD ---
+  Widget _buildStatsDashboard(BuildContext context, int total, int beaten, int playing) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-        ),
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(20), // More rounded corners
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+          ),
+          boxShadow:[
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ]
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children:[
-          Icon(Icons.collections_bookmark,
-              color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 12),
-          Text(
-            'Total Games Added: $count',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          _buildStatColumn(context, Icons.collections_bookmark_rounded, Theme.of(context).colorScheme.primary, total.toString(), 'Total'),
+          Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)), // Divider
+          _buildStatColumn(context, Icons.emoji_events_rounded, Colors.amber.shade600, beaten.toString(), 'Beaten'),
+          Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)), // Divider
+          _buildStatColumn(context, Icons.play_circle_filled_rounded, Colors.green.shade500, playing.toString(), 'Playing'),
         ],
       ),
     );
   }
 
-  /// Master Logout Logic
+  Widget _buildStatColumn(BuildContext context, IconData icon, Color iconColor, String count, String label) {
+    return Column(
+      children:[
+        Icon(icon, color: iconColor, size: 28),
+        const SizedBox(height: 8),
+        Text(
+          count,
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+  // --- END MINI STATS DASHBOARD ---
+
   Future<void> _performLogout(BuildContext context, WidgetRef ref) async {
     final googleAccount = ref.read(googleSignInAccountProvider);
 
     LoadingOverlay.show(context);
     try {
       if (googleAccount != null) {
-        // 1. Auto-Sync to Drive before logging out to ensure safety
         await ref.read(cloudSyncServiceProvider).autoSync();
-        // 2. Sign out of Google
         await ref.read(cloudSyncServiceProvider).signOutGoogle();
       }
 
-      // 3. Clear local Hive database so the next user starts fresh
       await Hive.box<Game>('games').clear();
       ref.read(gameListProvider.notifier).refresh();
 
-      // 4. Navigate back to Auth Screen
       LoadingOverlay.hide();
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -132,22 +149,22 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Local Data
     final localUserName = ref.watch(userNameProvider);
     final localProfilePath = ref.watch(profileImageProvider);
-    final totalGames = ref.watch(gameListProvider).length;
 
-    // Google Data
+    // FETCH STATS
+    final allGames = ref.watch(gameListProvider);
+    final totalGames = allGames.length;
+    final beatenGames = allGames.where((g) => g.status == GameStatus.beaten).length;
+    final playingGames = allGames.where((g) => g.status == GameStatus.nowPlaying).length;
+
     final googleAccount = ref.watch(googleSignInAccountProvider);
     final isGoogleSignedIn = googleAccount != null;
 
-    // --- DYNAMIC OVERRIDES ---
-    // If signed in, use Google name. Otherwise, use local name.
     final displayString = isGoogleSignedIn
         ? (googleAccount.displayName ?? localUserName)
         : localUserName;
 
-    // Determine the Avatar Image
     ImageProvider? avatarImage;
     if (isGoogleSignedIn && googleAccount.photoUrl != null) {
       avatarImage = NetworkImage(googleAccount.photoUrl!);
@@ -164,10 +181,8 @@ class ProfileScreen extends ConsumerWidget {
         children:[
           const SizedBox(height: 30),
 
-          // --- PROFILE PICTURE SECTION ---
           Center(
             child: GestureDetector(
-              // Disable local image picker if using Google Account photo
               onTap: isGoogleSignedIn
                   ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Using Google Profile Picture')))
                   : () => _pickProfileImage(ref, context),
@@ -183,7 +198,7 @@ class ProfileScreen extends ConsumerWidget {
                         color: Theme.of(context).colorScheme.primary)
                         : null,
                   ),
-                  if (!isGoogleSignedIn) // Only show camera icon for guests
+                  if (!isGoogleSignedIn)
                     Positioned(
                       bottom: 0,
                       right: 0,
@@ -205,7 +220,6 @@ class ProfileScreen extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          // --- USER NAME ---
           Center(
             child: Text(
               displayString,
@@ -214,7 +228,6 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
 
-          // Display email under name if signed in
           if (isGoogleSignedIn)
             Center(
               child: Padding(
@@ -226,15 +239,14 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
 
-          // --- STATS BOX ---
-          _buildTotalGamesStat(totalGames, context),
+          // --- IMPLEMENTED DASHBOARD ---
+          _buildStatsDashboard(context, totalGames, beatenGames, playingGames),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           const Divider(indent: 16, endIndent: 16),
 
-          // --- CLOUD SYNC SECTION ---
           const SectionTitle(title: 'Cloud Sync'),
           if (!isGoogleSignedIn)
             ProfileMenuItem(
@@ -260,7 +272,6 @@ class ProfileScreen extends ConsumerWidget {
 
           const Divider(indent: 16, endIndent: 16),
 
-          // --- SETTINGS SECTION ---
           const SectionTitle(title: 'Settings'),
           ProfileMenuItem(
             icon: Icons.settings_outlined,
@@ -272,7 +283,6 @@ class ProfileScreen extends ConsumerWidget {
             },
           ),
 
-          // Only show local name changer if NOT signed into Google
           if (!isGoogleSignedIn) ...[
             const SectionTitle(title: 'Account'),
             ProfileMenuItem(
@@ -305,7 +315,6 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           const Divider(indent: 16, endIndent: 16),
 
-          // --- MASTER LOGOUT ---
           ProfileMenuItem(
             icon: Icons.logout,
             title: isGoogleSignedIn ? 'Save & Log out' : 'Log out (Guest)',
@@ -328,8 +337,8 @@ class ProfileScreen extends ConsumerWidget {
                     FilledButton(
                       style: FilledButton.styleFrom(backgroundColor: Colors.red),
                       onPressed: () {
-                        Navigator.of(ctx).pop(); // Close Dialog
-                        _performLogout(context, ref); // Execute Master Logout
+                        Navigator.of(ctx).pop();
+                        _performLogout(context, ref);
                       },
                       child: const Text('Log Out'),
                     ),

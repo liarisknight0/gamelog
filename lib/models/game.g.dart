@@ -17,6 +17,7 @@ class GameAdapter extends TypeAdapter<Game> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Game(
+      id: fields[11] as String?,
       title: fields[0] as String,
       platform: fields[1] as String,
       genre: fields[2] as String,
@@ -34,7 +35,9 @@ class GameAdapter extends TypeAdapter<Game> {
   @override
   void write(BinaryWriter writer, Game obj) {
     writer
+      ..writeByte(12)
       ..writeByte(11)
+      ..write(obj.id)
       ..writeByte(0)
       ..write(obj.title)
       ..writeByte(1)

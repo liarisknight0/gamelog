@@ -236,7 +236,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
 
   Widget _buildFormFields() {
     return ListView(
-      children: [
+      children:[
         if (widget.game == null)
           Padding(
             padding: const EdgeInsets.only(bottom: 24.0),
@@ -268,6 +268,8 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
               ),
             ),
           ),
+
+        // --- BASIC DETAILS ---
         TextFormField(
           controller: _titleController,
           decoration: const InputDecoration(labelText: 'Title'),
@@ -277,25 +279,93 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Platform'),
-          subtitle: Text(_selectedPlatform ?? 'Not selected'),
+          subtitle: Text(_selectedPlatform ?? 'Not selected', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
           trailing: const Icon(Icons.arrow_drop_down),
           onTap: _showPlatformSelector,
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Genre'),
-          subtitle: Text(_selectedGenre ?? 'Not selected'),
+          subtitle: Text(_selectedGenre ?? 'Not selected', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
           trailing: const Icon(Icons.arrow_drop_down),
           onTap: _showGenreSelector,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Status'),
-          subtitle: Text(_getStatusText(_selectedStatus ?? GameStatus.backlog)),
+          subtitle: Text(_getStatusText(_selectedStatus ?? GameStatus.backlog), style: TextStyle(color: Theme.of(context).colorScheme.primary)),
           trailing: const Icon(Icons.arrow_drop_down),
           onTap: _showStatusSelector,
         ),
+
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 16),
+
+        // --- NEW PREMIUM FIELDS ---
+        Text(
+            "Collection Details",
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade500)
+        ),
+        const SizedBox(height: 8),
+
+        // 1. Physical vs Digital Toggle
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("Physical Copy"),
+          subtitle: const Text("Do you own this on disc/cartridge?"),
+          secondary: Icon(_isPhysical == true ? Icons.album : Icons.cloud_download),
+          value: _isPhysical ?? false,
+          onChanged: (bool value) {
+            setState(() {
+              _isPhysical = value;
+            });
+          },
+        ),
+
+        // 2. Progress Slider (Only show if game is actively being played or paused)
+        if (_selectedStatus == GameStatus.nowPlaying || _selectedStatus == GameStatus.paused) ...[
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children:[
+              const Text("Completion Progress"),
+              Text("${(_progress ?? 0).toInt()}%", style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          Slider(
+            value: _progress ?? 0.0,
+            min: 0,
+            max: 100,
+            divisions: 20, // Snaps to 0, 5, 10, 15...
+            label: "${(_progress ?? 0).toInt()}%",
+            onChanged: (double value) {
+              setState(() {
+                _progress = value;
+              });
+            },
+          ),
+        ],
+
+        const SizedBox(height: 16),
+
+        // 3. Gaming Journal (Notes)
+        TextFormField(
+          initialValue: _notes, // Load existing notes if editing
+          decoration: InputDecoration(
+            labelText: 'Gaming Journal / Notes',
+            hintText: 'Write down your thoughts, tips, or review...',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          maxLines: 5, // Make it a big text box
+          onChanged: (value) {
+            _notes = value; // Update the variable directly
+          },
+        ),
+
+        const SizedBox(height: 32), // Extra padding at bottom
       ],
     );
   }
