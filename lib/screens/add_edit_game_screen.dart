@@ -5,6 +5,7 @@ import 'package:gamelog/models/game.dart';
 import 'package:gamelog/models/tag_data.dart';
 import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/screens/online_search_screen.dart';
+import 'package:gamelog/services/firebase_sync_service.dart'; // <--- NEW IMPORT ADDED
 import 'package:gamelog/services/igdb_service.dart';
 import 'package:gamelog/widgets/tag_selector.dart';
 import 'package:hive/hive.dart';
@@ -84,7 +85,9 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
       }
 
       final isEditing = widget.game != null;
+
       final gameData = Game(
+        id: widget.game?.id, // Preserve ID when editing so Firebase overwrites the correct document
         title: _titleController.text,
         platform: _selectedPlatform!,
         genre: _selectedGenre!,
@@ -98,15 +101,19 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         progress: _progress,
       );
 
-      final notifier = ref.read(gameListProvider.notifier);
+      // --- FIX IS HERE ---
       if (isEditing) {
-        final originalKey = widget.game!.key;
-        Hive.box<Game>('games').put(originalKey, gameData);
-        notifier.refresh();
+        // 1. Update Local Hive Database correctly using .put()
+        Hive.box<Game>('games').put(widget.game!.key, gameData);
+        // 2. Push update directly using the Firebase service
+        ref.read(firebaseSyncServiceProvider).saveGameToCloud(gameData);
       } else {
-        notifier.addGame(gameData);
+        // For new games, the GameRepository handles both local add and cloud push
+        ref.read(gameRepositoryProvider).addGame(gameData);
       }
-      Navigator.of(context).pop();
+      // -------------------
+
+      if (mounted) Navigator.of(context).pop();
     }
   }
 
@@ -117,15 +124,15 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Game?'),
         content: Text('Are you sure you want to permanently delete "${widget.game!.title}"?'),
-        actions: [
+        actions:[
           TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(ctx).pop()),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete'),
             onPressed: () {
-              ref.read(gameListProvider.notifier).deleteGame(widget.game!);
+              ref.read(gameRepositoryProvider).deleteGame(widget.game!);
               Navigator.of(ctx).pop(); // Close dialog
-              Navigator.of(context).pop(); // Close edit screen
+              if (mounted) Navigator.of(context).pop(); // Close edit screen
             },
           ),
         ],
@@ -141,7 +148,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         content: SizedBox(
           width: double.maxFinite,
           child: TagSelector(
-            title: 'Select a Platform', // <--- FIX HERE: Added required title
+            title: 'Select a Platform',
             tags: platformTags,
             currentlySelected: _selectedPlatform,
           ),
@@ -159,7 +166,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         content: SizedBox(
           width: double.maxFinite,
           child: TagSelector(
-            title: 'Select a Genre', // <--- FIX HERE: Added required title
+            title: 'Select a Genre',
             tags: genreTags,
             currentlySelected: _selectedGenre,
           ),
@@ -210,7 +217,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(appBarTitle),
-        actions: [
+        actions:[
           if (isEditing)
             IconButton(onPressed: _deleteGame, icon: const Icon(Icons.delete))
         ],
@@ -220,7 +227,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         child: Form(
           key: _formKey,
           child: Column(
-            children: [
+            children:[
               Expanded(child: _buildFormFields()),
               const SizedBox(height: 20),
               SafeArea(
@@ -269,7 +276,6 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
             ),
           ),
 
-        // --- BASIC DETAILS ---
         TextFormField(
           controller: _titleController,
           decoration: const InputDecoration(labelText: 'Title'),
@@ -303,14 +309,12 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
         const Divider(),
         const SizedBox(height: 16),
 
-        // --- NEW PREMIUM FIELDS ---
         Text(
             "Collection Details",
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade500)
         ),
         const SizedBox(height: 8),
 
-        // 1. Physical vs Digital Toggle
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text("Physical Copy"),
@@ -324,7 +328,6 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
           },
         ),
 
-        // 2. Progress Slider (Only show if game is actively being played or paused)
         if (_selectedStatus == GameStatus.nowPlaying || _selectedStatus == GameStatus.paused) ...[
           const SizedBox(height: 16),
           Row(
@@ -338,7 +341,7 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
             value: _progress ?? 0.0,
             min: 0,
             max: 100,
-            divisions: 20, // Snaps to 0, 5, 10, 15...
+            divisions: 20,
             label: "${(_progress ?? 0).toInt()}%",
             onChanged: (double value) {
               setState(() {
@@ -350,22 +353,21 @@ class _AddEditGameScreenState extends ConsumerState<AddEditGameScreen> {
 
         const SizedBox(height: 16),
 
-        // 3. Gaming Journal (Notes)
         TextFormField(
-          initialValue: _notes, // Load existing notes if editing
+          initialValue: _notes,
           decoration: InputDecoration(
             labelText: 'Gaming Journal / Notes',
             hintText: 'Write down your thoughts, tips, or review...',
             alignLabelWithHint: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          maxLines: 5, // Make it a big text box
+          maxLines: 5,
           onChanged: (value) {
-            _notes = value; // Update the variable directly
+            _notes = value;
           },
         ),
 
-        const SizedBox(height: 32), // Extra padding at bottom
+        const SizedBox(height: 32),
       ],
     );
   }

@@ -32,22 +32,24 @@ class AppSettingsScreen extends ConsumerWidget {
 
           const Divider(),
 
-          // --- BACKUP & RESTORE ---
+          // --- DATA MANAGEMENT (Manual) ---
           const SectionTitle(title: 'Data Management'),
           ListTile(
             leading: const Icon(Icons.upload_file),
-            title: const Text('Export Backup'),
-            subtitle: const Text('Save your library to Google Drive or Email'),
+            title: const Text('Export Manual Backup'),
+            subtitle: const Text('Save a JSON file to Drive or Email'),
             onTap: () => BackupService.exportBackup(context),
           ),
           ListTile(
             leading: const Icon(Icons.download_for_offline),
-            title: const Text('Import Backup'),
-            subtitle: const Text('Restore games from a previous backup file'),
+            title: const Text('Import Manual Backup'),
+            subtitle: const Text('Restore games from a JSON file'),
             onTap: () {
               BackupService.importBackup(context, () {
-                // Refresh the game list provider after import
-                ref.read(gameListProvider.notifier).refresh();
+                // --- FIX: Logic for StreamProvider ---
+                // We invalidate the provider to force it to re-read the Hive box
+                // and update the UI with the imported games.
+                ref.invalidate(gameListProvider);
               });
             },
           ),
@@ -55,7 +57,7 @@ class AppSettingsScreen extends ConsumerWidget {
           const Padding(
             padding: EdgeInsets.all(16.0),
             child: Text(
-              "Note: Importing a backup adds games to your current list. It does not delete existing data.",
+              "Note: This is for manual file backups. Automatic syncing happens via the Cloud Sync feature in your Profile.",
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),

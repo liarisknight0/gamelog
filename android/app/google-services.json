@@ -12,7 +12,36 @@
           "package_name": "com.liarisknight.gamelog"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "421278333318-0fudpse4sliiar6hrs1gec69eaerj1m9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liarisknight.gamelog",
+            "certificate_hash": "21c95e7b65b9cee7d86372c81478670be16265bc"
+          }
+        },
+        {
+          "client_id": "421278333318-2dvo5bos9sbc8kbj2d4r5fjp6p9ud7nv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liarisknight.gamelog",
+            "certificate_hash": "c626ef9aa96a009e3207ec15380bfe4bc9b0e3bf"
+          }
+        },
+        {
+          "client_id": "421278333318-9du1nuogstrb6kahcv9q6rb2esgaas9j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liarisknight.gamelog",
+            "certificate_hash": "e925614f85bb3d930b5fdf2b07e6b791f73f5a13"
+          }
+        },
+        {
+          "client_id": "421278333318-amhl723jpfum122u69i9tsm91707k6lh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAc2mLoUr1zDX6mcPdN3IWBCGv5GpobqDg"
@@ -20,7 +49,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "421278333318-amhl723jpfum122u69i9tsm91707k6lh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

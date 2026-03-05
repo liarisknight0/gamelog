@@ -14,12 +14,13 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the filtered and sorted provider for Now Playing games
     final List<Game> games = ref.watch(nowPlayingProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Now Playing'),
-        actions: [
+        actions:[
           const SyncIndicator(),
           const SortMenu(),
           IconButton(
@@ -45,25 +46,44 @@ class HomeScreen extends ConsumerWidget {
           final game = games[index];
           return Dismissible(
             key: ValueKey(game.key),
+            // Swipe Right -> Archive
             background: Container(
               color: Colors.green,
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.only(left: 20.0),
-              child: const Icon(Icons.archive, color: Colors.white),
+              child: const Row(
+                children:[
+                  Icon(Icons.archive, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text('Archive', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ),
+            // Swipe Left -> Backlog
             secondaryBackground: Container(
               color: Colors.orange,
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20.0),
-              child: const Icon(Icons.playlist_add, color: Colors.white),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children:[
+                  Text('Backlog', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  SizedBox(width: 10),
+                  Icon(Icons.playlist_add, color: Colors.white),
+                ],
+              ),
             ),
             onDismissed: (direction) {
               HapticFeedback.mediumImpact();
+              final gameRepo = ref.read(gameRepositoryProvider);
+
               if (direction == DismissDirection.startToEnd) {
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.beaten);
+                // Swipe Right -> Archive
+                gameRepo.updateGameStatus(game, GameStatus.beaten);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} archived')));
               } else {
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.backlog);
+                // Swipe Left -> Backlog
+                gameRepo.updateGameStatus(game, GameStatus.backlog);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} moved to Backlog')));
               }
             },

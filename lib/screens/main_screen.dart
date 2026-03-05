@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/models/game.dart';
-import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/screens/add_edit_game_screen.dart';
 import 'package:gamelog/screens/archive_screen.dart';
 import 'package:gamelog/screens/backlog_screen.dart';

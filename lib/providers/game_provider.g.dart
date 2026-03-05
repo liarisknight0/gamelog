@@ -6,10 +6,23 @@ part of 'game_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$collectionHash() => r'500f55e1409b2468c389839f8f8e77a77b83b9ca';
+String _$gameListHash() => r'9b5ce9d23b204fd3bbbdaf25c9014643351b1460';
 
-/// 4. FILTERED & SORTED PROVIDERS
-/// These are what the UI screens (Collection, Backlog, etc.) actually use.
+/// See also [gameList].
+@ProviderFor(gameList)
+final gameListProvider = StreamProvider<List<Game>>.internal(
+  gameList,
+  name: r'gameListProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$gameListHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef GameListRef = StreamProviderRef<List<Game>>;
+String _$collectionHash() => r'50b00ecd01450d3f227fbbfabc99456e5789daea';
+
+/// FILTERED & SORTED PROVIDERS
 ///
 /// Copied from [collection].
 @ProviderFor(collection)
@@ -23,7 +36,7 @@ final collectionProvider = AutoDisposeProvider<List<Game>>.internal(
 );
 
 typedef CollectionRef = AutoDisposeProviderRef<List<Game>>;
-String _$nowPlayingHash() => r'23b7e5b7330c0e32a1d384aa7a70da3a8615c1a2';
+String _$nowPlayingHash() => r'7386fbd54317ec2016dda30bbe37ae8313c4684f';
 
 /// See also [nowPlaying].
 @ProviderFor(nowPlaying)
@@ -37,7 +50,7 @@ final nowPlayingProvider = AutoDisposeProvider<List<Game>>.internal(
 );
 
 typedef NowPlayingRef = AutoDisposeProviderRef<List<Game>>;
-String _$archiveHash() => r'46a6ac9aab16199496110743c74e2c69ae3b0232';
+String _$archiveHash() => r'25b5c8fe3bcd06351ff5981d4079b65b22f2b141';
 
 /// See also [archive].
 @ProviderFor(archive)
@@ -51,7 +64,7 @@ final archiveProvider = AutoDisposeProvider<List<Game>>.internal(
 );
 
 typedef ArchiveRef = AutoDisposeProviderRef<List<Game>>;
-String _$backlogHash() => r'794829c909ccd23f729015cdfee783c89839a5c1';
+String _$backlogHash() => r'240106712ed762dfb70b5505e0b4c7d21bd32fc5';
 
 /// See also [backlog].
 @ProviderFor(backlog)
@@ -65,7 +78,7 @@ final backlogProvider = AutoDisposeProvider<List<Game>>.internal(
 );
 
 typedef BacklogRef = AutoDisposeProviderRef<List<Game>>;
-String _$searchResultsHash() => r'db4eb205b25dbb0293bd21f67997166c35706829';
+String _$searchResultsHash() => r'8d69fe7c618a4a07339bde727b5ce930b7b0a062';
 
 /// See also [searchResults].
 @ProviderFor(searchResults)
@@ -94,26 +107,9 @@ final gameSortProvider = NotifierProvider<GameSort, GameSortOption>.internal(
 );
 
 typedef _$GameSort = Notifier<GameSortOption>;
-String _$gameListHash() => r'd3a8a4525dd0cb2dabb7f3caac0a1bf2dc278309';
-
-/// 2. THE MASTER LIST
-/// Manages the raw data coming directly from Hive.
-///
-/// Copied from [GameList].
-@ProviderFor(GameList)
-final gameListProvider = NotifierProvider<GameList, List<Game>>.internal(
-  GameList.new,
-  name: r'gameListProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$gameListHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GameList = Notifier<List<Game>>;
 String _$searchQueryHash() => r'3c36752ee11b18a9f1e545eb1a7209a7222d91c9';
 
-/// 5. SEARCH LOGIC
+/// SEARCH LOGIC
 ///
 /// Copied from [SearchQuery].
 @ProviderFor(SearchQuery)

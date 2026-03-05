@@ -14,19 +14,19 @@ class ArchiveScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the filtered and sorted provider for the archive
     final List<Game> games = ref.watch(archiveProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Archive'),
-        actions: [
+        actions:[
           const SyncIndicator(),
           const SortMenu(),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'Search All Games',
             onPressed: () {
-              // This is the line with the corrected context
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const SearchScreen()),
               );
@@ -38,7 +38,7 @@ class ArchiveScreen extends ConsumerWidget {
           ? const EmptyStateWidget(
         icon: Icons.inventory_2_outlined,
         title: 'Archive is Empty',
-        message: "Games you've beaten will appear here.",
+        message: "Games you've beaten or dropped will appear here.",
       )
           : ListView.builder(
         itemCount: games.length,
@@ -50,21 +50,36 @@ class ArchiveScreen extends ConsumerWidget {
               color: Colors.orange,
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.only(left: 20.0),
-              child: const Icon(Icons.playlist_add, color: Colors.white),
+              child: const Row(
+                children:[
+                  Icon(Icons.playlist_add, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text('Move to Backlog', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ),
             secondaryBackground: Container(
               color: Colors.blue,
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20.0),
-              child: const Icon(Icons.play_circle_outline, color: Colors.white),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children:[
+                  Text('Play Again', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  SizedBox(width: 10),
+                  Icon(Icons.play_circle_outline, color: Colors.white),
+                ],
+              ),
             ),
             onDismissed: (direction) {
               HapticFeedback.mediumImpact();
-              if (direction == DismissDirection.startToEnd) { // Right -> Backlog
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.backlog);
+              final gameRepo = ref.read(gameRepositoryProvider);
+
+              if (direction == DismissDirection.startToEnd) { // Swipe Right -> Backlog
+                gameRepo.updateGameStatus(game, GameStatus.backlog);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} moved to Backlog')));
-              } else { // Left -> Now Playing
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.nowPlaying);
+              } else { // Swipe Left -> Now Playing
+                gameRepo.updateGameStatus(game, GameStatus.nowPlaying);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} moved to Now Playing')));
               }
             },

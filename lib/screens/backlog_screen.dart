@@ -14,6 +14,7 @@ class BacklogScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the filtered and sorted provider for the backlog
     final List<Game> games = ref.watch(backlogProvider);
 
     return Scaffold(
@@ -49,21 +50,36 @@ class BacklogScreen extends ConsumerWidget {
               color: Colors.blue,
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.only(left: 20.0),
-              child: const Icon(Icons.play_circle_outline, color: Colors.white),
+              child: const Row( // Added Row for text and icon
+                children: [
+                  Icon(Icons.play_circle_outline, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text('Start Playing', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ),
             secondaryBackground: Container(
               color: Colors.green,
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20.0),
-              child: const Icon(Icons.archive, color: Colors.white),
+              child: const Row( // Added Row for text and icon
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text('Archive', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  SizedBox(width: 10),
+                  Icon(Icons.archive, color: Colors.white),
+                ],
+              ),
             ),
             onDismissed: (direction) {
               HapticFeedback.mediumImpact();
-              if (direction == DismissDirection.startToEnd) { // Right -> Now Playing
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.nowPlaying);
+              final gameRepo = ref.read(gameRepositoryProvider);
+
+              if (direction == DismissDirection.startToEnd) { // Swipe Right -> Now Playing
+                gameRepo.updateGameStatus(game, GameStatus.nowPlaying);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} moved to Now Playing')));
-              } else { // Left -> Archive
-                ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.beaten);
+              } else { // Swipe Left -> Archive
+                gameRepo.updateGameStatus(game, GameStatus.beaten);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} moved to Archive')));
               }
             },

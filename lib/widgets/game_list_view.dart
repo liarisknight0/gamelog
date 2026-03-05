@@ -11,8 +11,12 @@ class GameListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // The if(games.isEmpty) check has been removed.
-    // This widget now assumes it will only be built when games are present.
+    // This widget assumes it will only be built when games are present.
+    // It provides generic swipe actions (Archive / Backlog).
+    // Note: It's usually better to have specific swipe logic per screen
+    // (like we did in home_screen and archive_screen), but if you use
+    // this as a generic fallback, this logic is safe.
+
     return ListView.builder(
       itemCount: games.length,
       itemBuilder: (context, index) {
@@ -23,23 +27,42 @@ class GameListView extends ConsumerWidget {
             color: Colors.green,
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.only(left: 20.0),
-            child: const Icon(Icons.archive, color: Colors.white),
+            child: const Row(
+              children:[
+                Icon(Icons.archive, color: Colors.white),
+                SizedBox(width: 10),
+                Text('Archive', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ],
+            ),
           ),
           secondaryBackground: Container(
-            color: Colors.orange, // Changed to orange for Backlog
+            color: Colors.orange,
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 20.0),
-            child: const Icon(Icons.playlist_add, color: Colors.white),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children:[
+                Text('Backlog', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                SizedBox(width: 10),
+                Icon(Icons.playlist_add, color: Colors.white),
+              ],
+            ),
           ),
           onDismissed: (direction) {
             HapticFeedback.mediumImpact();
-            if (direction == DismissDirection.startToEnd) { // Right -> Archive
-              ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.beaten);
+            // --- FIX: Use GameRepository instead of Notifier ---
+            final gameRepo = ref.read(gameRepositoryProvider);
+
+            if (direction == DismissDirection.startToEnd) {
+              // Right -> Archive
+              gameRepo.updateGameStatus(game, GameStatus.beaten);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} archived')));
-            } else { // Left -> Backlog
-              ref.read(gameListProvider.notifier).updateGameStatus(game, GameStatus.backlog);
+            } else {
+              // Left -> Backlog
+              gameRepo.updateGameStatus(game, GameStatus.backlog);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${game.title} moved to Backlog')));
             }
+            // ---------------------------------------------------
           },
           child: GameCard(game: game),
         );

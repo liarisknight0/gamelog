@@ -11,12 +11,12 @@ class GameDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the provider so if we edit the game, this screen updates instantly
+    // Watch the master list so if we edit the game, this screen rebuilds instantly
     ref.watch(gameListProvider);
 
     return Scaffold(
       body: CustomScrollView(
-        slivers:[
+        slivers: [
           // --- 1. THE TOP IMAGE WITH GRADIENT FADE ---
           SliverAppBar(
             expandedHeight: 450,
@@ -24,7 +24,7 @@ class GameDetailScreen extends ConsumerWidget {
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,
-                children:[
+                children: [
                   Hero(
                     tag: 'game-image-${game.key}',
                     child: game.coverUrl != null
@@ -34,7 +34,7 @@ class GameDetailScreen extends ConsumerWidget {
                     )
                         : Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
                   ),
-                  // The Gradient overlay (Seamless blend into background)
+                  // The Gradient overlay (Seamless blend)
                   Positioned(
                     bottom: -1, // -1 prevents a tiny 1px line glitch
                     left: 0,
@@ -45,7 +45,7 @@ class GameDetailScreen extends ConsumerWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors:[
+                          colors: [
                             Colors.transparent,
                             Theme.of(context).scaffoldBackgroundColor,
                           ],
@@ -56,7 +56,7 @@ class GameDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            actions:[
+            actions: [
               IconButton(
                 icon: const Icon(Icons.edit),
                 onPressed: () => Navigator.of(context).push(
@@ -72,10 +72,11 @@ class GameDetailScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children:[
+                children: [
+                  // Title and Rating
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children:[
+                    children: [
                       Expanded(
                         child: Text(
                           game.title,
@@ -98,7 +99,7 @@ class GameDetailScreen extends ConsumerWidget {
 
                   // Physical/Digital Badge
                   Row(
-                    children:[
+                    children: [
                       Icon(
                         game.isPhysical == true ? Icons.album : Icons.cloud_download,
                         size: 18,
@@ -112,6 +113,31 @@ class GameDetailScreen extends ConsumerWidget {
                     ],
                   ),
 
+                  // Progress Bar (If progress > 0)
+                  if (game.progress != null && game.progress! > 0) ...[
+                    const SizedBox(height: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("Completion", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text("${game.progress!.toInt()}%", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: game.progress! / 100,
+                          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(context).colorScheme.primary,
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 24),
@@ -122,10 +148,10 @@ class GameDetailScreen extends ConsumerWidget {
                     (game.summary != null && game.summary!.isNotEmpty)
                         ? game.summary!
                         : "No summary available for this game.",
-                    style: TextStyle(fontSize: 15, height: 1.6, color: Colors.grey.shade300),
+                    style: TextStyle(fontSize: 15, height: 1.6, color: Colors.grey.shade400),
                   ),
 
-                  // Gaming Journal (Notes) if they exist
+                  // Gaming Journal (Notes)
                   if (game.notes != null && game.notes!.isNotEmpty) ...[
                     const SizedBox(height: 32),
                     Text("My Notes", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
@@ -201,7 +227,8 @@ class GameDetailScreen extends ConsumerWidget {
                 title: Text(_getStatusText(status)),
                 trailing: game.status == status ? const Icon(Icons.check, color: Colors.green) : null,
                 onTap: () {
-                  ref.read(gameListProvider.notifier).updateGameStatus(game, status);
+                  // --- FIX: Use GameRepository to update status ---
+                  ref.read(gameRepositoryProvider).updateGameStatus(game, status);
                   Navigator.pop(ctx);
                 },
               );

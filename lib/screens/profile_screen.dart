@@ -11,7 +11,7 @@ import 'package:gamelog/screens/about_screen.dart';
 import 'package:gamelog/screens/app_settings_screen.dart';
 import 'package:gamelog/screens/support_screen.dart';
 import 'package:gamelog/screens/auth_screen.dart';
-import 'package:gamelog/services/firebase_sync_service.dart'; // <--- NEW IMPORT
+import 'package:gamelog/services/firebase_sync_service.dart';
 import 'package:gamelog/widgets/profile_menu_widgets.dart';
 import 'package:gamelog/widgets/loading_overlay.dart';
 
@@ -115,34 +115,33 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  // --- FIX: ROBUST LOGOUT LOGIC ---
   Future<void> _performLogout(BuildContext context, WidgetRef ref) async {
+    final syncService = ref.read(firebaseSyncServiceProvider);
+
     LoadingOverlay.show(context);
     try {
-      final syncService = ref.read(firebaseSyncServiceProvider);
-
-      // Ensure we push data before logging out if possible
-      // (With Firebase, sync is usually instant, but a final migration check doesn't hurt)
       if (syncService.currentUser != null) {
-        await syncService.migrateAndSyncLocalData();
+        try {
+          // Attempt final sync, but don't let it crash the logout if Firebase is down
+          await syncService.migrateAndSyncLocalData();
+        } catch (syncError) {
+          debugPrint("Final sync failed, proceeding with logout: $syncError");
+        }
         await syncService.signOut();
       }
-
-      // Clear local Hive database
-      await Hive.box<Game>('games').clear();
-      ref.read(gameListProvider.notifier).refresh();
+    } catch (e) {
+      debugPrint('Error during Firebase signout: $e');
+    } finally {
+      // THIS WILL NOW RUN NO MATTER WHAT HAPPENS ABOVE
+      await Hive.box<Game>('games').clear(); // Wipe offline data
+      ref.invalidate(gameListProvider); // Reset UI
 
       LoadingOverlay.hide();
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthScreen()),
               (route) => false,
-        );
-      }
-    } catch (e) {
-      LoadingOverlay.hide();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error during logout: $e')),
         );
       }
     }
@@ -152,13 +151,14 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final localUserName = ref.watch(userNameProvider);
     final localProfilePath = ref.watch(profileImageProvider);
-    final allGames = ref.watch(gameListProvider);
+
+    final allGamesAsync = ref.watch(gameListProvider);
+    final allGames = allGamesAsync.value ??[];
+
     final totalGames = allGames.length;
     final beatenGames = allGames.where((g) => g.status == GameStatus.beaten).length;
     final playingGames = allGames.where((g) => g.status == GameStatus.nowPlaying).length;
 
-    // --- FIREBASE USER CHECK ---
-    // We can access currentUser directly since auth state persists
     final syncService = ref.watch(firebaseSyncServiceProvider);
     final firebaseUser = syncService.currentUser;
     final isGoogleSignedIn = firebaseUser != null;
@@ -318,7 +318,7 @@ class ProfileScreen extends ConsumerWidget {
 
           ProfileMenuItem(
             icon: Icons.logout,
-            title: isGoogleSignedIn ? 'Save & Log out' : 'Log out (Guest)',
+            title: isGoogleSignedIn ? 'Log out' : 'Log out (Guest)',
             textColor: Colors.red,
             onTap: () {
               showDialog(

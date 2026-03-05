@@ -7,11 +7,13 @@ import 'package:gamelog/providers/theme_provider.dart';
 import 'package:gamelog/screens/auth_screen.dart';
 import 'package:gamelog/screens/main_screen.dart';
 import 'package:gamelog/screens/onboarding_screen.dart';
-import 'package:gamelog/services/firebase_sync_service.dart'; // <--- NEW SERVICE
+import 'package:gamelog/services/firebase_sync_service.dart';
+import 'package:gamelog/providers/sync_status_provider.dart';
 import 'package:gamelog/themes/app_themes.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Global flag for onboarding status
 late final bool hasSeenOnboarding;
 
 void main() async {
@@ -53,22 +55,25 @@ class _GameLogAppState extends ConsumerState<GameLogApp> {
   @override
   void initState() {
     super.initState();
-    _initSync();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initSync();
+    });
   }
 
   Future<void> _initSync() async {
-    // Check if user is already signed in to Firebase
-    // If yes, turn on the listener to pull down cloud changes
-    final syncService = ref.read(firebaseSyncServiceProvider);
+    final firebaseSyncService = ref.read(firebaseSyncServiceProvider);
 
-    if (syncService.currentUser != null) {
-      syncService.startListeningToCloud();
-    }
+    await firebaseSyncService.signInSilently();
+    // ---------------------------------
 
-    // Also listen for future login/logout events to start/stop sync
-    syncService.authStateChanges.listen((user) {
+    // Listen for Firebase Auth state changes
+    firebaseSyncService.authStateChanges.listen((user) {
       if (user != null) {
-        syncService.startListeningToCloud();
+        firebaseSyncService.startListeningToCloud();
+        ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
+      } else {
+        firebaseSyncService.stopListeningToCloud();
+        ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.hidden);
       }
     });
   }
@@ -78,15 +83,12 @@ class _GameLogAppState extends ConsumerState<GameLogApp> {
     final themeMode = ref.watch(themeModeNotifierProvider);
     final firebaseUser = ref.watch(firebaseSyncServiceProvider).currentUser;
 
-    // --- ROUTING LOGIC ---
     Widget initialScreen;
     if (!hasSeenOnboarding) {
       initialScreen = const OnboardingScreen();
     } else if (firebaseUser != null) {
-      // Logged in via Firebase -> Main App
       initialScreen = const MainScreen();
     } else {
-      // Returning user, not logged in -> Auth Screen
       initialScreen = const AuthScreen();
     }
 
