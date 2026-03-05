@@ -1,92 +1,150 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // <--- NEW IMPORT
 import 'package:gamelog/models/game.dart';
+import 'package:gamelog/providers/selection_provider.dart'; // <--- NEW IMPORT
 import 'package:gamelog/screens/add_edit_game_screen.dart';
 import 'package:gamelog/screens/game_detail_screen.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart'; // For formatting the date
+import 'package:intl/intl.dart';
 
-class GameCard extends StatelessWidget {
+// Changed to ConsumerWidget to watch selection state
+class GameCard extends ConsumerWidget {
   final Game game;
 
   const GameCard({super.key, required this.game});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch selection state
+    final isSelectionMode = ref.watch(isSelectionModeProvider);
+    final selectedGames = ref.watch(selectedGamesProvider);
+    final isSelected = selectedGames.contains(game.id);
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      clipBehavior: Clip.antiAlias, // Ensures the image corners are rounded
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha:0.3),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+      clipBehavior: Clip.antiAlias,
+      elevation: isSelected ? 8 : 3, // Pop out slightly when selected
+      shadowColor: Colors.black.withValues(alpha: 0.3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        // Add a premium border if selected
+        side: isSelected
+            ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)
+            : BorderSide.none,
+      ),
       child: InkWell(
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (ctx) => GameDetailScreen(game: game)),
-          );
+          if (isSelectionMode) {
+            // Toggle selection logic
+            HapticFeedback.selectionClick();
+            final currentSelection = Set<String>.from(selectedGames);
+            if (isSelected) {
+              currentSelection.remove(game.id);
+              if (currentSelection.isEmpty) {
+                ref.read(isSelectionModeProvider.notifier).state = false; // Exit mode if empty
+              }
+            } else {
+              currentSelection.add(game.id);
+            }
+            ref.read(selectedGamesProvider.notifier).state = currentSelection;
+          } else {
+            // Normal tap logic
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (ctx) => GameDetailScreen(game: game)),
+            );
+          }
         },
         onLongPress: () {
           HapticFeedback.heavyImpact();
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (ctx) => AddEditGameScreen(game: game)),
-          );
+          if (!isSelectionMode) {
+            // Enter selection mode on long press
+            ref.read(isSelectionModeProvider.notifier).state = true;
+            ref.read(selectedGamesProvider.notifier).state = {game.id};
+          } else {
+            // If already in selection mode, long press edits the game
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (ctx) => AddEditGameScreen(game: game)),
+            );
+          }
         },
         child: SizedBox(
-          height: 140, // A fixed height creates a clean, uniform list
-          child: Row(
+          height: 140,
+          child: Stack(
             children: [
-              // --- LEFT SIDE: GAME COVER ---
-              SizedBox(
-                width: 100,
-                height: double.infinity,
-                child: _buildCoverImage(),
+              Row(
+                children:[
+                  // --- LEFT SIDE: GAME COVER ---
+                  SizedBox(
+                    width: 100,
+                    height: double.infinity,
+                    child: _buildCoverImage(),
+                  ),
+
+                  // --- RIGHT SIDE: GAME DETAILS ---
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children:[
+                          Text(
+                            game.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "${game.platform} • ${game.genre}",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.0,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                          const Spacer(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children:[
+                              Text(
+                                "Added: ${DateFormat.yMMMd().format(game.dateAdded)}",
+                                style: TextStyle(
+                                    fontSize: 11, color: Colors.grey.shade600),
+                              ),
+                              _buildStatusChip(),
+                            ],
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
 
-              // --- RIGHT SIDE: GAME DETAILS ---
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      Text(
-                        game.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16.0,
-                          fontWeight: FontWeight.bold,
-                        ),
+              // --- SELECTION OVERLAY ---
+              if (isSelectionMode)
+                Positioned.fill(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                        : Colors.black.withValues(alpha: 0.3), // Dim unselected items
+                    child: isSelected
+                        ? Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 16.0),
+                        child: Icon(Icons.check_circle, size: 32, color: Theme.of(context).colorScheme.primary),
                       ),
-                      const SizedBox(height: 4),
-                      // Platform & Genre
-                      Text(
-                        "${game.platform} • ${game.genre}",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.0,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                      const Spacer(), // Pushes the bottom row down
-                      // Status and Date
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Added: ${DateFormat.yMMMd().format(game.dateAdded)}",
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade600),
-                          ),
-                          _buildStatusChip(),
-                        ],
-                      )
-                    ],
+                    )
+                        : null,
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -94,10 +152,7 @@ class GameCard extends StatelessWidget {
     );
   }
 
-  // --- HELPER WIDGETS ---
-
   Widget _buildCoverImage() {
-    // If we have a URL, show the network image.
     if (game.coverUrl != null && game.coverUrl!.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: game.coverUrl!,
@@ -113,7 +168,6 @@ class GameCard extends StatelessWidget {
         errorWidget: (context, url, error) => const Icon(Icons.error),
       );
     }
-    // Otherwise, show a placeholder.
     return Container(
       color: Colors.grey.shade300,
       child: const Center(
@@ -130,7 +184,7 @@ class GameCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _getStatusColor(game.status).withValues(alpha:0.15),
+        color: _getStatusColor(game.status).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -145,7 +199,6 @@ class GameCard extends StatelessWidget {
   }
 
   String _getStatusText(GameStatus status) {
-    // Using shorter, punchier text for the small chip
     switch (status) {
       case GameStatus.nowPlaying: return 'PLAYING';
       case GameStatus.notStarted: return 'PLANNED';

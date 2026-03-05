@@ -115,30 +115,38 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // --- FIX: ROBUST LOGOUT LOGIC ---
+  // --- THE BULLETPROOF LOGOUT FUNCTION ---
   Future<void> _performLogout(BuildContext context, WidgetRef ref) async {
     final syncService = ref.read(firebaseSyncServiceProvider);
 
     LoadingOverlay.show(context);
+
     try {
       if (syncService.currentUser != null) {
         try {
-          // Attempt final sync, but don't let it crash the logout if Firebase is down
+          // Attempt final sync to cloud
           await syncService.migrateAndSyncLocalData();
         } catch (syncError) {
           debugPrint("Final sync failed, proceeding with logout: $syncError");
         }
+
+        // Call the service's bulletproof signOut method
         await syncService.signOut();
       }
     } catch (e) {
-      debugPrint('Error during Firebase signout: $e');
+      debugPrint('Error during logout process: $e');
     } finally {
-      // THIS WILL NOW RUN NO MATTER WHAT HAPPENS ABOVE
+      // THIS WILL NOW ALWAYS RUN
       await Hive.box<Game>('games').clear(); // Wipe offline data
-      ref.invalidate(gameListProvider); // Reset UI
+
+      // Force the UI to forget everything
+      ref.invalidate(gameListProvider);
+      ref.invalidate(googleSignInAccountProvider);
 
       LoadingOverlay.hide();
+
       if (context.mounted) {
+        // Kick user out to AuthScreen and clear navigation history
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthScreen()),
               (route) => false,

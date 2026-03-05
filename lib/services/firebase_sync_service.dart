@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:gamelog/models/game.dart';
+import 'package:gamelog/providers/game_provider.dart';
 import 'package:gamelog/providers/sync_status_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,16 +15,21 @@ final firebaseSyncServiceProvider = Provider<FirebaseSyncService>((ref) {
   return FirebaseSyncService(ref);
 });
 
+// Provider to manage the GoogleSignIn instance
+final googleSignInProvider = Provider<GoogleSignIn>((ref) {
+  return GoogleSignIn(
+    serverClientId: '421278333318-amhl723jpfum122u69i9tsm91707k6lh.apps.googleusercontent.com',
+    scopes: const ['email'],
+  );
+});
+
+// Provider to manage the current GoogleSignInAccount
+final googleSignInAccountProvider = StateProvider<GoogleSignInAccount?>((ref) => null);
+
 class FirebaseSyncService {
   final Ref _ref;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    //
-    serverClientId: '421278333318-amhl723jpfum122u69i9tsm91707k6lh.apps.googleusercontent.com',
-    scopes: ['email'],
-  );
 
   StreamSubscription? _remoteSubscription;
 
@@ -34,12 +40,16 @@ class FirebaseSyncService {
   User? get currentUser => _auth.currentUser;
 
   Future<User?> signInWithGoogle() async {
+    final googleSignIn = _ref.read(googleSignInProvider);
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.unsynced);
         return null;
       }
+
+      _ref.read(googleSignInAccountProvider.notifier).state = googleUser;
+
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -48,7 +58,7 @@ class FirebaseSyncService {
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
 
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
-      startListeningToCloud();
+      // Main.dart handles starting the listener via authStateChanges stream
 
       return userCredential.user;
     } catch (e) {
@@ -58,14 +68,14 @@ class FirebaseSyncService {
     }
   }
 
-  // --- NEW FIX: ADDED MISSING METHOD ---
   Future<User?> signInSilently() async {
+    final googleSignIn = _ref.read(googleSignInProvider);
     try {
-      // 1. Try to silently sign in with Google
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signInSilently();
       if (googleUser == null) return null;
 
-      // 2. Refresh Firebase credentials using the silent Google token
+      _ref.read(googleSignInAccountProvider.notifier).state = googleUser;
+
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -74,20 +84,32 @@ class FirebaseSyncService {
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
 
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
-      startListeningToCloud();
-
       return userCredential.user;
     } catch (e) {
       debugPrint("Firebase Silent Sign In Error: $e");
       return null;
     }
   }
-  // --------------------------------------
 
+  // --- THE BULLETPROOF LOGOUT METHOD ---
   Future<void> signOut() async {
+    final googleSignIn = _ref.read(googleSignInProvider);
+
     stopListeningToCloud();
-    await _googleSignIn.signOut();
+
+    // 1. Try to sever Google connection, but DON'T let it crash the app if it fails
+    try {
+      await googleSignIn.signOut();
+      await googleSignIn.disconnect();
+    } catch (e) {
+      debugPrint("Google Disconnect Error (Safe to ignore): $e");
+    }
+
+    // 2. CRITICAL: Force Firebase to sign out. This MUST run.
     await _auth.signOut();
+
+    // 3. Clear the UI states securely
+    _ref.invalidate(googleSignInAccountProvider);
     _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.hidden);
   }
 
@@ -115,7 +137,6 @@ class FirebaseSyncService {
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.syncing);
 
       final box = Hive.box<Game>('games');
-      bool localStateChanged = false;
 
       for (var change in snapshot.docChanges) {
         final data = change.doc.data();
@@ -136,8 +157,6 @@ class FirebaseSyncService {
           } else {
             await box.add(cloudGame);
           }
-          localStateChanged = true;
-
         } else if (change.type == DocumentChangeType.removed) {
           final existingKey = box.keys.firstWhere(
                   (k) => box.get(k)?.id == gameId,
@@ -145,18 +164,11 @@ class FirebaseSyncService {
           );
           if (existingKey != null) {
             await box.delete(existingKey);
-            localStateChanged = true;
           }
         }
       }
 
-      if (localStateChanged) {
-        // StreamProvider updates automatically, no need to refresh manually
-      }
-
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
-      debugPrint("Cloud changes processed. Status: Synced");
-
     }, onError: (e) {
       debugPrint("Cloud Listen Error: $e");
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.unsynced);
@@ -192,7 +204,6 @@ class FirebaseSyncService {
     try {
       await batch.commit();
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.synced);
-      startListeningToCloud();
     } catch (e) {
       debugPrint("Migration to Cloud Error: $e");
       _ref.read(syncStatusNotifierProvider.notifier).setStatus(SyncState.unsynced);
