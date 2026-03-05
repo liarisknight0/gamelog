@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class RoadmapItem {
-  final String title;
-  final String description;
-  final bool isCompleted;
-  RoadmapItem(this.title, this.description, this.isCompleted);
-}
-
 class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
 
@@ -17,31 +10,6 @@ class SupportScreen extends StatefulWidget {
 
 class _SupportScreenState extends State<SupportScreen> {
   final TextEditingController _suggestionController = TextEditingController();
-
-  // --- THE ROADMAP DATA ---
-  final List<RoadmapItem> roadmap = [
-    RoadmapItem("v1.0 Launch", "Core game tracking with offline local storage.", true),
-    RoadmapItem("API Integration", "Automated game search, metadata, and cover art.", true),
-    RoadmapItem("Sorting & Filtering", "Advanced sorting and filters for faster navigation.", true),
-    RoadmapItem("Import / Export Data", "Export and back up your library in supported formats.", true),
-    RoadmapItem("Google Account Sync", "Login with your google account.", true),
-    RoadmapItem("Social Features", "Share your backlog and progress with friends.", false),
-    RoadmapItem("HLTB Integration", "Show estimated main and completionist playtime on game details.", false),
-    RoadmapItem("Random Game Selector", "Pick a random backlog game to fight choice paralysis.", false),
-    RoadmapItem("Shimmer Loading States", "Skeleton loaders for smoother, premium loading experience.", false),
-    RoadmapItem("Custom Filter Tags", "Quick filter chips for platform, genre, and custom tags.", false),
-    RoadmapItem("Custom Accent Colors", "User-selected accent colors for a personalized theme.", false),
-    RoadmapItem("Shareable Collection Cards", "Generate shareable images of completed games.", false),
-    RoadmapItem("Platform Icons", "Replace text chips with official platform icons.", false),
-    RoadmapItem("AMOLED Black Theme", "True black theme optimized for OLED displays.", false),
-    RoadmapItem("Release Countdown", "Countdown timers and launch-day notifications for upcoming games.", false),
-    RoadmapItem("Gaming Journal", "Private notes for thoughts, tips, and personal memories.", false),
-    RoadmapItem("Home Screen Widget", "Widget showing the currently played game.", false),
-    RoadmapItem("Multi-Playthrough Support", "Track multiple playthroughs per game.", false),
-    RoadmapItem("Digital vs Physical Library", "Mark and filter games as physical or digital.", false),
-    RoadmapItem("Collection Worth Tracking", "Track price paid and total library value.", false),
-    RoadmapItem("Finished Date Timeline", "Timeline view of games completed over the years.", false),
-  ];
 
   @override
   void dispose() {
@@ -59,6 +27,7 @@ class _SupportScreenState extends State<SupportScreen> {
       return;
     }
 
+    // Replace with your actual email address
     const String myEmail = "liarisknight@gmail.com";
     final Uri emailLaunchUri = Uri(
       scheme: 'mailto',
@@ -107,35 +76,22 @@ class _SupportScreenState extends State<SupportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Support & Feature Drop')),
+      appBar: AppBar(title: const Text('Support GameLog')),
       body: ListView(
         padding: const EdgeInsets.all(20),
-        children: [
-          // --- ROADMAP SECTION ---
-          Text(
-            "Feature Roadmap",
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text("Here is what we are building next for GameLog."),
-          const SizedBox(height: 24),
-
-          ...roadmap.map((item) => _buildTimelineItem(context, item)),
-
-          const Divider(height: 40),
-
+        children:[
           // --- SUGGESTION SECTION ---
           Text(
             "Suggest a Feature",
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text("Have an idea to make GameLog better? Tell us about it!"),
+          const Text("Have an idea to make GameLog better or found a bug? Tell us about it!"),
           const SizedBox(height: 16),
 
           TextField(
             controller: _suggestionController,
-            maxLines: 3,
+            maxLines: 5, // Slightly taller since we have more screen space now
             decoration: InputDecoration(
               hintText: "I want to see...",
               filled: true,
@@ -157,73 +113,39 @@ class _SupportScreenState extends State<SupportScreen> {
           ),
 
           const SizedBox(height: 40),
+          const Divider(),
+          const SizedBox(height: 40),
 
           // --- SUPPORT BUTTON ---
+          Text(
+            "Support the Developer",
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
           Center(
             child: FilledButton.icon(
               onPressed: _launchBuyMeACoffee,
               icon: const Icon(Icons.coffee_rounded),
-              label: const Text("Support the Developer"),
+              label: const Text("Buy Me a Coffee"),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                backgroundColor: const Color(0xFFFFDD00), // Standard Buy Me a Coffee Yellow
+                foregroundColor: Colors.black87,
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           const Center(
             child: Text(
-              "Your support helps us keep GameLog ad-free forever.",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              "GameLog is built by an independent developer. Your support helps keep the app ad-free and funds future updates!",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
             ),
           ),
           const SizedBox(height: 40),
         ],
       ),
-    );
-  }
-
-  Widget _buildTimelineItem(BuildContext context, RoadmapItem item) {
-    final color = item.isCompleted ? Colors.green : Theme.of(context).colorScheme.primary;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Icon(
-              item.isCompleted ? Icons.check_circle : Icons.circle_outlined,
-              size: 20,
-              color: color,
-            ),
-            Container(
-              width: 2,
-              height: 40,
-              color: Colors.grey.withValues(alpha: 0.2),
-            ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.title,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: item.isCompleted ? Colors.grey : null,
-                  decoration: item.isCompleted ? TextDecoration.lineThrough : null,
-                ),
-              ),
-              Text(
-                item.description,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
