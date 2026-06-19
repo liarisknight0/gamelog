@@ -1,83 +1,83 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:gamelog/models/game.dart';
+import 'package:gamelog/screens/add_edit_game_screen.dart';
+import 'package:intl/intl.dart'; // For formatting the date
 
 class GameCard extends StatelessWidget {
   final Game game;
-  final VoidCallback onLongPress;
 
-  const GameCard({
-    super.key,
-    required this.game,
-    required this.onLongPress,
-  });
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'now playing':
-        return Colors.blueAccent;
-      case 'beaten':
-        return Colors.green;
-      case 'paused':
-        return Colors.orange;
-      case 'not started':
-      case 'dropped':
-        return Colors.grey.shade600;
-      default:
-        return Colors.grey;
-    }
-  }
+  const GameCard({super.key, required this.game});
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      // --- COLOR RESTORED ---
-      // We are back to using the nice dark grey from our app's theme.
-      color: Theme.of(context).colorScheme.surface,
-      // --- END OF CHANGE ---
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      clipBehavior: Clip.antiAlias, // Ensures the image corners are rounded
+      elevation: 3,
+      shadowColor: Colors.black.withValues(alpha:0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: InkWell(
-        onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        // The new "tap" navigation is more intuitive than long-press
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (ctx) => AddEditGameScreen(game: game)),
+          );
+        },
+        child: SizedBox(
+          height: 140, // A fixed height creates a clean, uniform list
+          child: Row(
             children: [
-              Text(
-                game.title,
-                style: const TextStyle(
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.bold,
-                ),
+              // --- LEFT SIDE: GAME COVER ---
+              SizedBox(
+                width: 100,
+                height: double.infinity,
+                child: _buildCoverImage(),
               ),
-              const SizedBox(height: 8.0),
-              Row(
-                children: [
-                  Chip(
-                    label: Text(game.platform),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
+
+              // --- RIGHT SIDE: GAME DETAILS ---
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        game.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Platform & Genre
+                      Text(
+                        "${game.platform} • ${game.genre}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.0,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      const Spacer(), // Pushes the bottom row down
+                      // Status and Date
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Added: ${DateFormat.yMMMd().format(game.dateAdded)}",
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade600),
+                          ),
+                          _buildStatusChip(),
+                        ],
+                      )
+                    ],
                   ),
-                  const SizedBox(width: 8.0),
-                  Chip(
-                    label: Text(game.genre),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12.0),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Chip(
-                  label: Text(
-                    game.status,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  backgroundColor: _getStatusColor(game.status),
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
                 ),
               ),
             ],
@@ -85,5 +85,77 @@ class GameCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // --- HELPER WIDGETS ---
+
+  Widget _buildCoverImage() {
+    // If we have a URL, show the network image.
+    if (game.coverUrl != null && game.coverUrl!.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: game.coverUrl!,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: Colors.grey.shade800,
+          child: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CircularProgressIndicator(strokeWidth: 2.0),
+              )),
+        ),
+        errorWidget: (context, url, error) => const Icon(Icons.error),
+      );
+    }
+    // Otherwise, show a placeholder.
+    return Container(
+      color: Colors.grey.shade300,
+      child: const Center(
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          color: Colors.grey,
+          size: 40,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _getStatusColor(game.status).withValues(alpha:0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _getStatusText(game.status),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: _getStatusColor(game.status),
+        ),
+      ),
+    );
+  }
+
+  String _getStatusText(GameStatus status) {
+    // Using shorter, punchier text for the small chip
+    switch (status) {
+      case GameStatus.nowPlaying: return 'PLAYING';
+      case GameStatus.notStarted: return 'PLANNED';
+      case GameStatus.beaten: return 'BEATEN';
+      case GameStatus.paused: return 'PAUSED';
+      case GameStatus.dropped: return 'DROPPED';
+      case GameStatus.backlog: return 'WISHLIST';
+    }
+  }
+
+  Color _getStatusColor(GameStatus status) {
+    switch (status) {
+      case GameStatus.nowPlaying: return Colors.blue.shade700;
+      case GameStatus.beaten: return Colors.green.shade700;
+      case GameStatus.paused: return Colors.orange.shade700;
+      case GameStatus.dropped: return Colors.red.shade700;
+      default: return Colors.grey.shade700;
+    }
   }
 }

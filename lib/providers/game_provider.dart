@@ -1,71 +1,142 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/models/game.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// --- ADD THIS ENUM ---
-// Using an enum is safer than using raw Strings for our filter types.
-enum GameFilter { all, nowPlaying, beaten, notStarted, paused, dropped }
-// --- END OF ENUM ---
+// Mandatory for code generation
+part 'game_provider.g.dart';
 
-// --- ADD THIS NEW PROVIDER ---
-// This provider will simply hold the current filter state.
-final gameFilterProvider = StateProvider<GameFilter>((ref) => GameFilter.all);
-// --- END OF NEW PROVIDER ---
+/// 1. THE SORTING STATE
+/// Defines how we want to organize our lists.
+enum GameSortOption { alphabetical, dateAdded, rating }
 
-class GameNotifier extends StateNotifier<List<Game>> {
-  GameNotifier() : super(Hive.box<Game>('games').values.toList());
-  final _gameBox = Hive.box<Game>('games');
+@Riverpod(keepAlive: true)
+class GameSort extends _$GameSort {
+  @override
+  GameSortOption build() => GameSortOption.dateAdded; // Default sort
 
-  void _refreshGames() {
-    // A helper function to avoid repeating code
-    state = _gameBox.values.toList();
+  void setSort(GameSortOption option) => state = option;
+}
+
+/// 2. THE MASTER LIST
+/// Manages the raw data coming directly from Hive.
+@Riverpod(keepAlive: true)
+class GameList extends _$GameList {
+  late Box<Game> _box;
+
+  @override
+  List<Game> build() {
+    _box = Hive.box<Game>('games');
+    return _box.values.toList();
+  }
+
+  /// Refreshes the state from the database.
+  /// Call this after manual Hive operations or imports.
+  void refresh() {
+    state = _box.values.toList();
   }
 
   void addGame(Game game) {
-    _gameBox.add(game);
-    _refreshGames();
+    _box.add(game);
+    refresh();
   }
 
   void deleteGame(Game game) {
     game.delete();
-    _refreshGames();
+    refresh();
   }
 
-  void updateGame(Game existingGame, Game updatedGameData) {
-    existingGame.title = updatedGameData.title;
-    existingGame.platform = updatedGameData.platform;
-    existingGame.genre = updatedGameData.genre;
-    existingGame.status = updatedGameData.status;
-    existingGame.save();
-    _refreshGames();
+  void updateGameStatus(Game game, GameStatus newStatus) {
+    game.status = newStatus;
+    game.save();
+    refresh();
   }
 }
 
-// --- MODIFY THE EXISTING gameProvider ---
-// We will change this to a regular Provider that DEPENDS on our other providers.
-final gameProvider = Provider<List<Game>>((ref) {
-  // Watch both the game list and the current filter.
-  final filter = ref.watch(gameFilterProvider);
-  final games = ref.watch(gameListProvider); // Changed from gameProvider
-
-  // Based on the filter, return the appropriate list of games.
-  switch (filter) {
-    case GameFilter.nowPlaying:
-      return games.where((game) => game.status == 'Now Playing').toList();
-    case GameFilter.beaten:
-      return games.where((game) => game.status == 'Beaten').toList();
-    case GameFilter.notStarted:
-      return games.where((game) => game.status == 'Not Started').toList();
-    case GameFilter.paused:
-      return games.where((game) => game.status == 'Paused').toList();
-    case GameFilter.dropped:
-      return games.where((game) => game.status == 'Dropped').toList();
-    case GameFilter.all:
-      return games;
+/// 3. HELPER FOR SORTING
+/// A private utility to sort lists based on user preference.
+List<Game> _applySort(List<Game> list, GameSortOption option) {
+  final sortedList = List<Game>.from(list);
+  switch (option) {
+    case GameSortOption.alphabetical:
+      sortedList.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      break;
+    case GameSortOption.rating:
+    // Sort by rating descending (highest first)
+      sortedList.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
+      break;
+    case GameSortOption.dateAdded:
+    // Sort by date added descending (newest first)
+      sortedList.sort((a, b) => b.dateAdded.compareTo(a.dateAdded));
+      break;
   }
-});
+  return sortedList;
+}
 
-// Rename the old provider to gameListProvider
-final gameListProvider = StateNotifierProvider<GameNotifier, List<Game>>((ref) {
-  return GameNotifier();
-});
+/// 4. FILTERED & SORTED PROVIDERS
+/// These are what the UI screens (Collection, Backlog, etc.) actually use.
+
+@riverpod
+List<Game> collection(Ref ref) {
+  final allGames = ref.watch(gameListProvider);
+  final sortOption = ref.watch(gameSortProvider);
+
+  List<Game> filtered = allGames;
+
+  return _applySort(filtered, sortOption);
+}
+
+@riverpod
+List<Game> nowPlaying(Ref ref) {
+  final allGames = ref.watch(gameListProvider);
+  final sortOption = ref.watch(gameSortProvider);
+
+  final filtered = allGames.where((game) => game.status == GameStatus.nowPlaying).toList();
+
+  return _applySort(filtered, sortOption);
+}
+
+@riverpod
+List<Game> archive(Ref ref) {
+  final allGames = ref.watch(gameListProvider);
+  final sortOption = ref.watch(gameSortProvider);
+
+  final filtered = allGames.where((game) =>
+  game.status == GameStatus.beaten ||
+      game.status == GameStatus.dropped
+  ).toList();
+
+  return _applySort(filtered, sortOption);
+}
+
+@riverpod
+List<Game> backlog(Ref ref) {
+  final allGames = ref.watch(gameListProvider);
+  final sortOption = ref.watch(gameSortProvider);
+
+  final filtered = allGames.where((game) => game.status == GameStatus.backlog).toList();
+
+  return _applySort(filtered, sortOption);
+}
+
+/// 5. SEARCH LOGIC
+
+@riverpod
+class SearchQuery extends _$SearchQuery {
+  @override
+  String build() => '';
+
+  void setQuery(String query) => state = query;
+}
+
+@riverpod
+List<Game> searchResults(Ref ref) {
+  final games = ref.watch(gameListProvider);
+  final query = ref.watch(searchQueryProvider).toLowerCase();
+
+  if (query.trim().isEmpty) return [];
+
+  return games.where((game) {
+    return game.title.toLowerCase().contains(query);
+  }).toList();
+}

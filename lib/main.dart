@@ -1,123 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <--- Ensure this import is present for SystemChrome
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gamelog/models/game.dart';
-import 'package:gamelog/providers/game_provider.dart';
-import 'package:gamelog/screens/about_screen.dart'; // <-- Added import
-import 'package:gamelog/screens/add_edit_game_screen.dart';
-import 'package:gamelog/widgets/game_list_view.dart';
+import 'package:gamelog/providers/theme_provider.dart';
+import 'package:gamelog/screens/main_screen.dart';
+import 'package:gamelog/screens/onboarding_screen.dart';
+import 'package:gamelog/themes/app_themes.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+late final bool hasSeenOnboarding;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // --- THESE LINES ARE CRITICAL FOR EDGE-TO-EDGE DISPLAY ---
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent, // Makes status bar transparent
+    systemNavigationBarColor: Colors.transparent, // Makes nav bar transparent
+    statusBarIconBrightness: Brightness.light, // Adjust based on your app's main color scheme
+    systemNavigationBarIconBrightness: Brightness.light, // Adjust based on your app's bottom nav content
+  ));
+  // ---------------------------------------------------------
+
   await Hive.initFlutter();
   Hive.registerAdapter(GameAdapter());
+  Hive.registerAdapter(GameStatusAdapter());
   await Hive.openBox<Game>('games');
+  await Hive.openBox('userSettings');
+
+  final prefs = await SharedPreferences.getInstance();
+  hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
+
   runApp(const ProviderScope(child: GameLogApp()));
 }
 
-class GameLogApp extends StatelessWidget {
+class GameLogApp extends ConsumerWidget {
   const GameLogApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeNotifierProvider);
+
     return MaterialApp(
       title: 'GameLog',
-      theme: ThemeData.dark().copyWith(
-        primaryColor: const Color(0xFF8A2BE2),
-        scaffoldBackgroundColor: const Color(0xFF1A1A1A),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF222222),
-          elevation: 0,
-        ),
-        floatingActionButtonTheme: FloatingActionButtonThemeData(
-          backgroundColor: const Color(0xFF9D4EDD),
-        ),
-        colorScheme: const ColorScheme.dark().copyWith(
-          primary: const Color(0xFF9D4EDD),
-          secondary: const Color(0xFFC77DFF),
-          onPrimary: Colors.white,
-          surface: const Color(0xFF2C2C2C),
-        ),
-      ),
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key});
-
-  // A helper function to convert the enum to a display-friendly string
-  String _filterTitle(GameFilter filter) {
-    switch (filter) {
-      case GameFilter.nowPlaying:
-        return 'Now Playing';
-      case GameFilter.beaten:
-        return 'Beaten';
-      case GameFilter.notStarted:
-        return 'Not Started';
-      case GameFilter.paused:
-        return 'Paused';
-      case GameFilter.dropped:
-        return 'Dropped';
-      case GameFilter.all:
-        return 'All Games';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // We watch gameProvider. It now provides the filtered list automatically.
-    final List<Game> games = ref.watch(gameProvider);
-    // We also watch the filter provider to display the current filter title.
-    final currentFilter = ref.watch(gameFilterProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        // Show the current filter in the title
-        title: Text(_filterTitle(currentFilter)),
-        actions: [
-          // Filter Button
-          PopupMenuButton<GameFilter>(
-            icon: const Icon(Icons.filter_list),
-            onSelected: (filter) {
-              // When a user selects a filter, we update the filter provider's state.
-              ref.read(gameFilterProvider.notifier).state = filter;
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<GameFilter>>[
-              const PopupMenuItem(value: GameFilter.all, child: Text('All')),
-              const PopupMenuItem(value: GameFilter.nowPlaying, child: Text('Now Playing')),
-              const PopupMenuItem(value: GameFilter.beaten, child: Text('Beaten')),
-              const PopupMenuItem(value: GameFilter.paused, child: Text('Paused')),
-              const PopupMenuItem(value: GameFilter.dropped, child: Text('Dropped')),
-              const PopupMenuItem(value: GameFilter.notStarted, child: Text('Not Started')),
-            ],
-          ),
-
-          // --- THIS IS THE NEWLY ADDED BUTTON ---
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (ctx) => const AboutScreen()),
-              );
-            },
-          ),
-          // --- END OF NEW BUTTON ---
-        ],
-      ),
-      body: GameListView(games: games),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => const AddEditGameScreen(),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
+      home: hasSeenOnboarding ? const MainScreen() : const OnboardingScreen(),
     );
   }
 }
